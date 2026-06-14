@@ -1,0 +1,1852 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WRO 2026 Junior Field Simulator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef1ed;
+      --panel: #ffffff;
+      --ink: #1f2933;
+      --muted: #667085;
+      --line: #d0d5dd;
+      --accent: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .app {
+      height: 100vh;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(225px, 270px) minmax(320px, 1fr) minmax(395px, 470px);
+      gap: 16px;
+      padding: 16px;
+      align-items: start;
+    }
+
+    .stage {
+      min-width: 0;
+      display: grid;
+      align-items: start;
+      justify-items: center;
+    }
+
+    .canvas-shell {
+      width: min(100%, calc(100vh - 32px));
+      max-height: calc(100vh - 32px);
+      aspect-ratio: 1;
+      border: 1px solid #a0a7b2;
+      background: #d9ded5;
+      overflow: hidden;
+      box-shadow: 0 12px 28px rgba(16, 24, 40, 0.18);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: auto;
+    }
+
+    .side {
+      min-width: 0;
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .meta {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 28px;
+      border-bottom: 1px solid #eef2f6;
+      padding-bottom: 6px;
+    }
+
+    .row:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .label {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .value {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .program-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .right-panel .program-panel {
+      height: calc(100vh - 32px);
+      align-content: start;
+      grid-template-rows: auto minmax(560px, 1fr) auto auto auto;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      min-height: 560px;
+      resize: vertical;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 10px;
+      color: #f8fafc;
+      background: #111827;
+      caret-color: #ffffff;
+      color-scheme: dark;
+      cursor: text;
+      font: 14px/1.45 Consolas, "Courier New", monospace;
+    }
+
+    textarea:hover,
+    textarea:focus {
+      background: #0f172a;
+      border-color: #2563eb;
+    }
+
+    .program-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .secondary-button {
+      border-color: #cfd4dc;
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    .danger-button {
+      border-color: #b42318;
+      background: #d92d20;
+    }
+
+    .program-status {
+      min-height: 32px;
+      border: 1px solid #e4e7ec;
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--muted);
+      background: #f8fafc;
+      font-size: 14px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .program-status.is-running {
+      color: #1d4ed8;
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .program-status.is-error {
+      color: #b42318;
+      background: #fff1f0;
+      border-color: #fecdca;
+    }
+
+    .program-status.is-done {
+      color: #067647;
+      background: #ecfdf3;
+      border-color: #abefc6;
+    }
+
+    .pseudocode-help {
+      border: 1px solid #e4e7ec;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .pseudocode-help summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      color: var(--muted);
+      font-weight: 700;
+      user-select: none;
+    }
+
+    .pseudocode-help-body {
+      display: grid;
+      gap: 8px;
+      border-top: 1px solid #e4e7ec;
+      padding: 10px;
+    }
+
+    .help-list {
+      display: grid;
+      gap: 5px;
+      margin: 0;
+    }
+
+    .help-list div {
+      display: grid;
+      grid-template-columns: minmax(120px, max-content) 1fr;
+      gap: 8px;
+    }
+
+    .pseudocode-help code {
+      color: #0f172a;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pseudocode-help pre {
+      margin: 0;
+      overflow: auto;
+      border-radius: 6px;
+      padding: 8px;
+      background: #111827;
+      color: #f8fafc;
+      font: 12px/1.35 Consolas, "Courier New", monospace;
+    }
+
+    .drop-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .color-controls {
+      display: grid;
+      gap: 8px;
+      border-top: 1px solid #eef2f6;
+      padding-top: 10px;
+    }
+
+    .color-select-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .color-select {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    select {
+      width: 100%;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+    }
+
+    select:disabled {
+      background: #f2f4f7;
+      color: #98a2b3;
+    }
+
+    button {
+      height: 36px;
+      border: 1px solid #1d4ed8;
+      border-radius: 6px;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      border-color: #cfd4dc;
+      background: #e4e7ec;
+      color: #667085;
+      cursor: default;
+      transform: none;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 3px solid rgba(37, 99, 235, 0.28);
+      outline-offset: 2px;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .range-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .error {
+      display: none;
+      color: #b42318;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .error.is-visible {
+      display: block;
+    }
+
+    @media (max-width: 1040px) {
+      .app {
+        grid-template-columns: minmax(320px, 1fr) minmax(395px, 470px);
+      }
+
+      .canvas-shell {
+        width: min(100%, calc(100vh - 32px));
+      }
+
+      .left-panel {
+        grid-column: 1;
+        grid-row: 2;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stage {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .right-panel {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+      }
+    }
+
+    @media (max-width: 760px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        overflow: auto;
+      }
+
+      .app {
+        height: auto;
+        grid-template-columns: 1fr;
+      }
+
+      .side {
+        max-height: none;
+      }
+
+      .stage,
+      .left-panel,
+      .right-panel {
+        grid-column: auto;
+        grid-row: auto;
+      }
+
+      .left-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .right-panel .program-panel {
+        height: auto;
+        min-height: 0;
+      }
+
+      textarea {
+        min-height: 520px;
+      }
+
+      .canvas-shell {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .app {
+        padding: 10px;
+      }
+
+      .canvas-shell {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="side left-panel" aria-label="Simulation controls">
+      <section class="panel">
+        <h1>WRO 2026 Junior</h1>
+        <dl class="meta">
+          <div class="row">
+            <dt class="label">Field crop</dt>
+            <dd class="value">1000 x 1000 mm</dd>
+          </div>
+          <div class="row">
+            <dt class="label">Crop origin</dt>
+            <dd class="value">x 740, y 0 mm</dd>
+          </div>
+          <div class="row">
+            <dt class="label">Robot size</dt>
+            <dd class="value">250 x 250 mm</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <dl class="meta">
+          <div class="row">
+            <dt class="label">X</dt>
+            <dd class="value" id="xValue">0 mm</dd>
+          </div>
+          <div class="row">
+            <dt class="label">Y</dt>
+            <dd class="value" id="yValue">0 mm</dd>
+          </div>
+          <div class="row">
+            <dt class="label">Heading</dt>
+            <dd class="value" id="headingValue">0 deg</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="panel controls">
+        <button id="resetButton" type="button">Reset</button>
+        <div class="drop-grid" aria-label="Drop artefacts">
+          <button class="drop-button" type="button" data-drop-id="1">1</button>
+          <button class="drop-button" type="button" data-drop-id="2">2</button>
+          <button class="drop-button" type="button" data-drop-id="3">3</button>
+          <button class="drop-button" type="button" data-drop-id="4">4</button>
+        </div>
+        <div class="color-controls" aria-label="Test colors">
+          <label class="toggle-row">
+            <span>Manual colors</span>
+            <input id="manualColorsToggle" type="checkbox">
+          </label>
+          <div class="color-select-grid">
+            <label class="color-select">
+              <span>Cube 1</span>
+              <select data-color-select="1"></select>
+            </label>
+            <label class="color-select">
+              <span>Cube 2</span>
+              <select data-color-select="2"></select>
+            </label>
+            <label class="color-select">
+              <span>Cube 3</span>
+              <select data-color-select="3"></select>
+            </label>
+            <label class="color-select">
+              <span>Cube 4</span>
+              <select data-color-select="4"></select>
+            </label>
+          </div>
+        </div>
+        <label class="toggle-row">
+          <span>Trail</span>
+          <input id="trailToggle" type="checkbox" checked>
+        </label>
+        <label class="toggle-row">
+          <span>Keyboard control</span>
+          <input id="keyboardToggle" type="checkbox">
+        </label>
+        <div>
+          <div class="range-head">
+            <span>Speed</span>
+            <span id="speedValue">500 mm/s</span>
+          </div>
+          <input id="speedInput" type="range" min="80" max="800" step="10" value="500">
+        </div>
+        <div>
+          <div class="range-head">
+            <span>Accel</span>
+            <span id="accelValue">1400 mm/s2</span>
+          </div>
+          <input id="accelInput" type="range" min="200" max="3000" step="100" value="1400">
+        </div>
+        <div>
+          <div class="range-head">
+            <span>Turn</span>
+            <span id="turnSpeedValue">240 deg/s</span>
+          </div>
+          <input id="turnSpeedInput" type="range" min="60" max="540" step="10" value="240">
+        </div>
+        <div>
+          <div class="range-head">
+            <span>Turn accel</span>
+            <span id="turnAccelValue">720 deg/s2</span>
+          </div>
+          <input id="turnAccelInput" type="range" min="120" max="1800" step="60" value="720">
+        </div>
+        <p id="assetError" class="error">Field image failed to load.</p>
+      </section>
+    </aside>
+
+    <section class="stage" aria-label="Simulation field">
+      <div class="canvas-shell">
+        <canvas id="field" width="1000" height="1000"></canvas>
+      </div>
+    </section>
+
+    <aside class="side right-panel" aria-label="Pseudocode editor">
+      <section class="panel program-panel">
+        <h1>Pseudocode</h1>
+        <textarea id="programInput" spellcheck="false">straight(100)
+turn(90)
+straight(50)
+drop(1)</textarea>
+        <div class="program-buttons">
+          <button id="runProgramButton" type="button">Run</button>
+          <button id="resetProgramButton" class="secondary-button" type="button">Reset</button>
+        </div>
+        <div id="programStatus" class="program-status">Ready</div>
+        <details class="pseudocode-help">
+          <summary>Справочник псевдокода</summary>
+          <div class="pseudocode-help-body">
+            <dl class="help-list">
+              <div><dt><code>straight(100)</code></dt><dd>ехать вперед, мм; минус едет назад</dd></div>
+              <div><dt><code>turn(90)</code></dt><dd>поворот на месте, градусы; плюс вправо</dd></div>
+              <div><dt><code>turn_one(left, 90)</code></dt><dd>поворот одним колесом: <code>left</code> или <code>right</code></dd></div>
+              <div><dt><code>drop(1)</code></dt><dd>оставить кубик 1..4</dd></div>
+              <div><dt><code>if Yellow == 1 {}</code></dt><dd>условие по цвету: 1..4 или <code>None</code></dd></div>
+              <div><dt><code>if color != None {}</code></dt><dd>условие внутри цикла</dd></div>
+              <div><dt><code>for color in colors {}</code></dt><dd>цикл: Yellow, Blue, Black, Green, Red</dd></div>
+            </dl>
+            <pre>for color in colors {
+  if color == 1 {
+    straight(130)
+    drop(1)
+  }
+}</pre>
+          </div>
+        </details>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    const WORLD_MM = 1000;
+    const PROGRAM_STORAGE_KEY = "wro2026JuniorPseudocode";
+    const COLOR_SETTINGS_STORAGE_KEY = "wro2026JuniorColorSettings";
+    const START_X_MM = 340;
+    const START_Y_MM = 820;
+    const START_HEADING_RAD = 0;
+    const ROBOT_SIZE_MM = 250;
+    const HALF_ROBOT_MM = ROBOT_SIZE_MM / 2;
+    const WHEEL_TRACK_MM = 163.5;
+    const HALF_WHEEL_TRACK_MM = WHEEL_TRACK_MM / 2;
+    const WHEEL_DIAMETER_MM = 62.4;
+    const WHEEL_WIDTH_MM = 24;
+    const ARTIFACT_SIZE_MM = 44;
+    const HALF_ARTIFACT_MM = ARTIFACT_SIZE_MM / 2;
+    const BACKGROUND_SRC = "assets/field-crop-1000.png";
+
+    const canvas = document.getElementById("field");
+    const ctx = canvas.getContext("2d");
+    const xValue = document.getElementById("xValue");
+    const yValue = document.getElementById("yValue");
+    const headingValue = document.getElementById("headingValue");
+    const resetButton = document.getElementById("resetButton");
+    const dropButtons = Array.from(document.querySelectorAll("[data-drop-id]"));
+    const manualColorsToggle = document.getElementById("manualColorsToggle");
+    const colorSelects = Array.from(document.querySelectorAll("[data-color-select]"));
+    const trailToggle = document.getElementById("trailToggle");
+    const keyboardToggle = document.getElementById("keyboardToggle");
+    const speedInput = document.getElementById("speedInput");
+    const speedValue = document.getElementById("speedValue");
+    const accelInput = document.getElementById("accelInput");
+    const accelValue = document.getElementById("accelValue");
+    const turnSpeedInput = document.getElementById("turnSpeedInput");
+    const turnSpeedValue = document.getElementById("turnSpeedValue");
+    const turnAccelInput = document.getElementById("turnAccelInput");
+    const turnAccelValue = document.getElementById("turnAccelValue");
+    const assetError = document.getElementById("assetError");
+    const programInput = document.getElementById("programInput");
+    const runProgramButton = document.getElementById("runProgramButton");
+    const resetProgramButton = document.getElementById("resetProgramButton");
+    const programStatus = document.getElementById("programStatus");
+
+    const background = new Image();
+    background.src = BACKGROUND_SRC;
+
+    const artefactColors = [
+      { name: "red", color: "#dc2626", textColor: "#ffffff" },
+      { name: "blue", color: "#2563eb", textColor: "#ffffff" },
+      { name: "green", color: "#16a34a", textColor: "#ffffff" },
+      { name: "black", color: "#111827", textColor: "#ffffff" },
+      { name: "yellow", color: "#facc15", textColor: "#111827" }
+    ];
+    const colorMapOrder = [
+      { name: "yellow", label: "Yellow" },
+      { name: "blue", label: "Blue" },
+      { name: "black", label: "Black" },
+      { name: "green", label: "Green" },
+      { name: "red", label: "Red" }
+    ];
+    const colorMapLinePattern = /^\[\s*Yellow\s*:/i;
+
+    const artefacts = [
+      { id: "1", localX: -62, localY: -62 },
+      { id: "2", localX: 62, localY: -62 },
+      { id: "3", localX: 62, localY: 62 },
+      { id: "4", localX: -62, localY: 62 }
+    ];
+
+    const keys = new Set();
+    const trail = [];
+    const robot = {
+      xMm: START_X_MM,
+      yMm: START_Y_MM,
+      headingRad: START_HEADING_RAD
+    };
+
+    let forwardSpeedMmS = Number(speedInput.value);
+    let accelerationMmS2 = Number(accelInput.value);
+    let turnSpeedRadS = Number(turnSpeedInput.value) * Math.PI / 180;
+    let turnAccelerationRadS2 = Number(turnAccelInput.value) * Math.PI / 180;
+    let manualLinearSpeedMmS = 0;
+    let manualTurnSpeedRadS = 0;
+    const reverseScale = 0.72;
+    let lastTime = performance.now();
+    const programState = {
+      running: false,
+      paused: false,
+      commands: [],
+      index: 0,
+      active: null
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function rampToward(current, target, maxDelta) {
+      if (current < target) return Math.min(target, current + maxDelta);
+      if (current > target) return Math.max(target, current - maxDelta);
+      return target;
+    }
+
+    function acceleratedStep(remaining, currentSpeed, maxSpeed, acceleration, dtSeconds) {
+      if (remaining <= 0) {
+        return { step: 0, speed: 0 };
+      }
+
+      const safeAcceleration = Math.max(1, acceleration);
+      const stopSpeed = Math.sqrt(2 * safeAcceleration * remaining);
+      const targetSpeed = Math.min(maxSpeed, stopSpeed);
+      const nextSpeed = rampToward(currentSpeed, targetSpeed, safeAcceleration * dtSeconds);
+      const averageSpeed = (currentSpeed + nextSpeed) / 2;
+      const step = Math.min(remaining, Math.max(0, averageSpeed * dtSeconds));
+
+      return {
+        step,
+        speed: step >= remaining - 0.001 ? 0 : nextSpeed
+      };
+    }
+
+    function resetManualMotion() {
+      manualLinearSpeedMmS = 0;
+      manualTurnSpeedRadS = 0;
+    }
+
+    function loadSavedProgram() {
+      try {
+        const saved = localStorage.getItem(PROGRAM_STORAGE_KEY);
+        if (saved !== null) {
+          programInput.value = saved;
+        }
+      } catch (error) {
+        setProgramStatus("Code autosave unavailable", "error");
+      }
+    }
+
+    function saveProgram() {
+      try {
+        localStorage.setItem(PROGRAM_STORAGE_KEY, programInput.value);
+      } catch (error) {
+        setProgramStatus("Code autosave unavailable", "error");
+      }
+    }
+
+    function colorDefinitionByName(name) {
+      return artefactColors.find((color) => color.name === name) || artefactColors[0];
+    }
+
+    function setArtefactColor(artefact, colorName) {
+      const definition = colorDefinitionByName(colorName);
+      artefact.name = definition.name;
+      artefact.color = definition.color;
+      artefact.textColor = definition.textColor;
+    }
+
+    function setupColorSelects() {
+      const options = colorMapOrder.map((color) => {
+        const option = document.createElement("option");
+        option.value = color.name;
+        option.textContent = color.label;
+        return option;
+      });
+
+      for (const select of colorSelects) {
+        for (const option of options) {
+          select.append(option.cloneNode(true));
+        }
+      }
+    }
+
+    function updateColorOptionAvailability() {
+      const selected = colorSelects.map((select) => select.value);
+      for (const select of colorSelects) {
+        for (const option of select.options) {
+          option.disabled = option.value !== select.value && selected.includes(option.value);
+        }
+        select.disabled = !manualColorsToggle.checked;
+      }
+    }
+
+    function normalizeColorSelects() {
+      const available = colorMapOrder.map((color) => color.name);
+      const used = new Set();
+
+      for (const select of colorSelects) {
+        if (!available.includes(select.value) || used.has(select.value)) {
+          select.value = available.find((name) => !used.has(name)) || available[0];
+        }
+        used.add(select.value);
+      }
+
+      updateColorOptionAvailability();
+    }
+
+    function syncColorSelectsFromArtefacts() {
+      for (const select of colorSelects) {
+        const artefact = artefacts.find((item) => item.id === select.dataset.colorSelect);
+        if (artefact && artefact.name) {
+          select.value = artefact.name;
+        }
+      }
+      normalizeColorSelects();
+    }
+
+    function applyManualArtefactColors() {
+      normalizeColorSelects();
+      for (const select of colorSelects) {
+        const artefact = artefacts.find((item) => item.id === select.dataset.colorSelect);
+        if (artefact) {
+          setArtefactColor(artefact, select.value);
+        }
+      }
+    }
+
+    function saveColorSettings() {
+      try {
+        localStorage.setItem(COLOR_SETTINGS_STORAGE_KEY, JSON.stringify({
+          manual: manualColorsToggle.checked,
+          colors: colorSelects.map((select) => select.value)
+        }));
+      } catch (error) {
+        setProgramStatus("Color settings autosave unavailable", "error");
+      }
+    }
+
+    function loadColorSettings() {
+      try {
+        const saved = localStorage.getItem(COLOR_SETTINGS_STORAGE_KEY);
+        if (!saved) return;
+
+        const settings = JSON.parse(saved);
+        manualColorsToggle.checked = Boolean(settings.manual);
+        if (Array.isArray(settings.colors)) {
+          for (let i = 0; i < colorSelects.length; i += 1) {
+            if (settings.colors[i]) {
+              colorSelects[i].value = settings.colors[i];
+            }
+          }
+        }
+        normalizeColorSelects();
+      } catch (error) {
+        setProgramStatus("Color settings autosave unavailable", "error");
+      }
+    }
+
+    function refreshColorsAfterManualChange() {
+      applyManualArtefactColors();
+      updateProgramColorMapLine();
+      updateDropButtons();
+      saveColorSettings();
+      draw();
+    }
+
+    function updateColorMode() {
+      if (manualColorsToggle.checked) {
+        applyManualArtefactColors();
+      } else {
+        randomizeArtefactColors();
+        syncColorSelectsFromArtefacts();
+      }
+
+      updateProgramColorMapLine();
+      updateDropButtons();
+      saveColorSettings();
+      draw();
+    }
+
+    function randomizeArtefactColors() {
+      const shuffled = [...artefactColors];
+      for (let i = shuffled.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      for (let i = 0; i < artefacts.length; i += 1) {
+        setArtefactColor(artefacts[i], shuffled[i].name);
+      }
+    }
+
+    function isColorMapLine(line) {
+      return colorMapLinePattern.test(line.trim());
+    }
+
+    function buildColorMapLine() {
+      const artefactIdByColor = new Map(
+        artefacts
+          .filter((artefact) => artefact.name)
+          .map((artefact) => [artefact.name, artefact.id])
+      );
+      const entries = colorMapOrder.map((color) => {
+        const id = artefactIdByColor.get(color.name) || "None";
+        return `${color.label}: ${id}`;
+      });
+
+      return `[${entries.join(", ")}]`;
+    }
+
+    function updateProgramColorMapLine() {
+      const mapLine = buildColorMapLine();
+      const lines = programInput.value.split(/\r?\n/);
+
+      if (lines.length > 0 && isColorMapLine(lines[0])) {
+        lines[0] = mapLine;
+      } else {
+        lines.unshift(mapLine);
+      }
+
+      programInput.value = lines.join("\n");
+      saveProgram();
+    }
+
+    function resetRobot({ stopProgram = true, randomizeColors = true } = {}) {
+      if (stopProgram) {
+        clearProgramExecution("Ready");
+      }
+      keys.clear();
+      resetManualMotion();
+      robot.xMm = START_X_MM;
+      robot.yMm = START_Y_MM;
+      robot.headingRad = START_HEADING_RAD;
+      trail.length = 0;
+      if (manualColorsToggle.checked) {
+        applyManualArtefactColors();
+      } else if (randomizeColors) {
+        randomizeArtefactColors();
+      }
+      syncColorSelectsFromArtefacts();
+      updateProgramColorMapLine();
+      for (const artefact of artefacts) {
+        artefact.dropped = false;
+        artefact.collisionActive = false;
+        artefact.xMm = null;
+        artefact.yMm = null;
+        artefact.headingRad = 0;
+      }
+      addTrailPoint();
+      updateDropButtons();
+      updateStatus();
+    }
+
+    function normalizeAngle(rad) {
+      let value = rad;
+      while (value <= -Math.PI) value += Math.PI * 2;
+      while (value > Math.PI) value -= Math.PI * 2;
+      return value;
+    }
+
+    function squareCorners(xMm, yMm, headingRad, halfSizeMm) {
+      const cos = Math.cos(headingRad);
+      const sin = Math.sin(headingRad);
+      const local = [
+        [-halfSizeMm, -halfSizeMm],
+        [halfSizeMm, -halfSizeMm],
+        [halfSizeMm, halfSizeMm],
+        [-halfSizeMm, halfSizeMm]
+      ];
+
+      return local.map(([lx, ly]) => ({
+        x: xMm + lx * cos - ly * sin,
+        y: yMm + lx * sin + ly * cos
+      }));
+    }
+
+    function robotCorners(xMm, yMm, headingRad) {
+      return squareCorners(xMm, yMm, headingRad, HALF_ROBOT_MM);
+    }
+
+    function artefactCorners(artefact) {
+      return squareCorners(artefact.xMm, artefact.yMm, artefact.headingRad, HALF_ARTIFACT_MM);
+    }
+
+    function projectionOnAxis(points, axis) {
+      let min = Infinity;
+      let max = -Infinity;
+
+      for (const point of points) {
+        const projected = point.x * axis.x + point.y * axis.y;
+        min = Math.min(min, projected);
+        max = Math.max(max, projected);
+      }
+
+      return { min, max };
+    }
+
+    function polygonCenter(points) {
+      const total = points.reduce((sum, point) => ({
+        x: sum.x + point.x,
+        y: sum.y + point.y
+      }), { x: 0, y: 0 });
+
+      return {
+        x: total.x / points.length,
+        y: total.y / points.length
+      };
+    }
+
+    function polygonAxes(points) {
+      const axes = [];
+      for (let i = 0; i < points.length; i += 1) {
+        const current = points[i];
+        const next = points[(i + 1) % points.length];
+        const edgeX = next.x - current.x;
+        const edgeY = next.y - current.y;
+        const length = Math.hypot(edgeX, edgeY);
+        axes.push({ x: -edgeY / length, y: edgeX / length });
+      }
+      return axes;
+    }
+
+    function polygonsOverlap(a, b) {
+      const axes = [...polygonAxes(a), ...polygonAxes(b)];
+      const epsilon = 0.01;
+
+      for (const axis of axes) {
+        const projectedA = projectionOnAxis(a, axis);
+        const projectedB = projectionOnAxis(b, axis);
+        if (projectedA.max <= projectedB.min + epsilon || projectedB.max <= projectedA.min + epsilon) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    function polygonPushVector(fromPoints, targetPoints) {
+      const axes = [...polygonAxes(fromPoints), ...polygonAxes(targetPoints)];
+      const fromCenter = polygonCenter(fromPoints);
+      const targetCenter = polygonCenter(targetPoints);
+      let smallestOverlap = Infinity;
+      let smallestAxis = null;
+      const epsilon = 0.5;
+
+      for (const axis of axes) {
+        const projectedFrom = projectionOnAxis(fromPoints, axis);
+        const projectedTarget = projectionOnAxis(targetPoints, axis);
+        const overlap = Math.min(projectedFrom.max, projectedTarget.max)
+          - Math.max(projectedFrom.min, projectedTarget.min);
+
+        if (overlap <= 0) {
+          return null;
+        }
+
+        if (overlap < smallestOverlap) {
+          const direction = (targetCenter.x - fromCenter.x) * axis.x
+            + (targetCenter.y - fromCenter.y) * axis.y;
+          smallestOverlap = overlap;
+          smallestAxis = direction < 0
+            ? { x: -axis.x, y: -axis.y }
+            : axis;
+        }
+      }
+
+      return {
+        x: smallestAxis.x * (smallestOverlap + epsilon),
+        y: smallestAxis.y * (smallestOverlap + epsilon)
+      };
+    }
+
+    function robotOverlapsArtefact(xMm, yMm, headingRad, artefact) {
+      return polygonsOverlap(
+        robotCorners(xMm, yMm, headingRad),
+        artefactCorners(artefact)
+      );
+    }
+
+    function localToWorld(localX, localY) {
+      const cos = Math.cos(robot.headingRad);
+      const sin = Math.sin(robot.headingRad);
+      return {
+        xMm: robot.xMm + localX * cos - localY * sin,
+        yMm: robot.yMm + localX * sin + localY * cos
+      };
+    }
+
+    function topBorderOverflow(xMm, yMm, headingRad) {
+      const minY = Math.min(...robotCorners(xMm, yMm, headingRad).map((corner) => corner.y));
+      return Math.max(0, -minY);
+    }
+
+    function applyTopBorder(xMm, yMm, headingRad) {
+      return {
+        xMm,
+        yMm: yMm + topBorderOverflow(xMm, yMm, headingRad),
+        headingRad
+      };
+    }
+
+    function updateDroppedArtefactCollisionState(xMm, yMm, headingRad) {
+      for (const artefact of artefacts) {
+        if (!artefact.dropped || artefact.collisionActive) continue;
+        if (!robotOverlapsArtefact(xMm, yMm, headingRad, artefact)) {
+          artefact.collisionActive = true;
+        }
+      }
+    }
+
+    function pushActiveArtefactsFromRobot(xMm, yMm, headingRad) {
+      const robotPoints = robotCorners(xMm, yMm, headingRad);
+
+      for (const artefact of artefacts) {
+        if (!artefact.dropped || !artefact.collisionActive) continue;
+
+        const push = polygonPushVector(robotPoints, artefactCorners(artefact));
+        if (!push) continue;
+
+        artefact.xMm += push.x;
+        artefact.yMm += push.y;
+      }
+    }
+
+    function tryApplyRobotPose(xMm, yMm, headingRad) {
+      const nextPose = applyTopBorder(xMm, yMm, headingRad);
+      updateDroppedArtefactCollisionState(nextPose.xMm, nextPose.yMm, nextPose.headingRad);
+      pushActiveArtefactsFromRobot(nextPose.xMm, nextPose.yMm, nextPose.headingRad);
+
+      robot.xMm = nextPose.xMm;
+      robot.yMm = nextPose.yMm;
+      robot.headingRad = nextPose.headingRad;
+      addTrailPoint();
+      updateStatus();
+      return true;
+    }
+
+    function addTrailPoint() {
+      const last = trail[trail.length - 1];
+      if (!last || Math.hypot(robot.xMm - last.xMm, robot.yMm - last.yMm) >= 8) {
+        trail.push({ xMm: robot.xMm, yMm: robot.yMm });
+        if (trail.length > 700) trail.shift();
+      }
+    }
+
+    function updateMotion(dtSeconds) {
+      if (programState.running || !keyboardToggle.checked) {
+        resetManualMotion();
+        return;
+      }
+
+      const forward = keys.has("ArrowUp") ? 1 : 0;
+      const backward = keys.has("ArrowDown") ? 1 : 0;
+      const left = keys.has("ArrowLeft") ? 1 : 0;
+      const right = keys.has("ArrowRight") ? 1 : 0;
+      const drive = forward - backward;
+      const turn = right - left;
+
+      const targetLinearSpeed = drive >= 0
+        ? drive * forwardSpeedMmS
+        : drive * forwardSpeedMmS * reverseScale;
+      const targetTurnSpeed = turn * turnSpeedRadS;
+
+      manualLinearSpeedMmS = rampToward(
+        manualLinearSpeedMmS,
+        targetLinearSpeed,
+        accelerationMmS2 * dtSeconds
+      );
+      manualTurnSpeedRadS = rampToward(
+        manualTurnSpeedRadS,
+        targetTurnSpeed,
+        turnAccelerationRadS2 * dtSeconds
+      );
+
+      if (
+        Math.abs(manualLinearSpeedMmS) < 0.01
+        && Math.abs(manualTurnSpeedRadS) < 0.0001
+      ) {
+        return;
+      }
+
+      const nextHeading = normalizeAngle(robot.headingRad + manualTurnSpeedRadS * dtSeconds);
+      const nextX = robot.xMm + Math.sin(nextHeading) * manualLinearSpeedMmS * dtSeconds;
+      const nextY = robot.yMm - Math.cos(nextHeading) * manualLinearSpeedMmS * dtSeconds;
+      tryApplyRobotPose(nextX, nextY, nextHeading);
+    }
+
+    function moveRobotBy(distanceMm) {
+      const nextX = robot.xMm + Math.sin(robot.headingRad) * distanceMm;
+      const nextY = robot.yMm - Math.cos(robot.headingRad) * distanceMm;
+      return tryApplyRobotPose(nextX, nextY, robot.headingRad);
+    }
+
+    function moveRobotAroundWheelPivot(pivotX, pivotY, pivotLocalX, headingRad) {
+      const nextX = pivotX - pivotLocalX * Math.cos(headingRad);
+      const nextY = pivotY - pivotLocalX * Math.sin(headingRad);
+      return tryApplyRobotPose(nextX, nextY, headingRad);
+    }
+
+    function dropArtefact(id) {
+      const artefact = artefacts.find((item) => item.id === id);
+      if (!artefact || artefact.dropped) return;
+
+      const world = localToWorld(artefact.localX, artefact.localY);
+      artefact.dropped = true;
+      artefact.xMm = clamp(world.xMm, HALF_ARTIFACT_MM, WORLD_MM - HALF_ARTIFACT_MM);
+      artefact.yMm = clamp(world.yMm, HALF_ARTIFACT_MM, WORLD_MM - HALF_ARTIFACT_MM);
+      artefact.headingRad = robot.headingRad;
+      artefact.collisionActive = false;
+      updateDropButtons();
+    }
+
+    function colorCubeId(colorName) {
+      const normalizedName = colorName.toLowerCase();
+      const artefact = artefacts.find((item) => item.name === normalizedName);
+      return artefact ? artefact.id : "None";
+    }
+
+    function knownColorName(name) {
+      const normalizedName = name.toLowerCase();
+      return colorMapOrder.some((color) => color.name === normalizedName);
+    }
+
+    function resolveColorName(name, scope, lineNumber) {
+      const normalizedName = name.toLowerCase();
+      if (knownColorName(normalizedName)) {
+        return normalizedName;
+      }
+      if (scope[normalizedName]) {
+        return scope[normalizedName];
+      }
+      throw new Error(`Line ${lineNumber}: unknown color or variable "${name}"`);
+    }
+
+    function parseColorList(source, lineNumber) {
+      const raw = source.trim();
+      if (/^colors$/i.test(raw)) {
+        return colorMapOrder.map((color) => color.name);
+      }
+
+      const names = raw.split(/\s*,\s*|\s+/).filter(Boolean);
+      if (names.length === 0) {
+        throw new Error(`Line ${lineNumber}: for expects colors`);
+      }
+
+      return names.map((name) => {
+        if (!knownColorName(name)) {
+          throw new Error(`Line ${lineNumber}: unknown color "${name}"`);
+        }
+        return name.toLowerCase();
+      });
+    }
+
+    function evaluateIfCondition(source, lineNumber, scope) {
+      let condition = source.trim();
+      if (condition.startsWith("(") && condition.endsWith(")")) {
+        condition = condition.slice(1, -1).trim();
+      }
+
+      const match = condition.match(/^([a-z_][a-z0-9_]*)\s*(==|=|!=)\s*(1|2|3|4|none)$/i);
+      if (!match) {
+        throw new Error(`Line ${lineNumber}: if expects Color == 1 or Color == None`);
+      }
+
+      const actual = colorCubeId(resolveColorName(match[1], scope, lineNumber));
+      const operator = match[2];
+      const expected = match[3].toLowerCase() === "none" ? "None" : match[3];
+
+      return operator === "!=" ? actual !== expected : actual === expected;
+    }
+
+    function parseCommandLine(raw, lineNumber) {
+      const turnOneMatch = raw.match(/^turn_one\s*\(\s*(left|right)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)$/i);
+      if (turnOneMatch) {
+        const value = Number(turnOneMatch[2]);
+        if (!Number.isFinite(value)) {
+          throw new Error(`Line ${lineNumber}: invalid number`);
+        }
+        return {
+          type: "turn_one",
+          movingWheel: turnOneMatch[1].toLowerCase(),
+          value,
+          line: lineNumber,
+          label: raw
+        };
+      }
+
+      if (/^turn_one\b/i.test(raw)) {
+        throw new Error(`Line ${lineNumber}: turn_one expects left/right and angle`);
+      }
+
+      const match = raw.match(/^([a-z]+)\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*\)$/i);
+      if (!match) {
+        throw new Error(`Line ${lineNumber}: unknown syntax`);
+      }
+
+      const name = match[1].toLowerCase();
+      const value = Number(match[2]);
+      if (!Number.isFinite(value)) {
+        throw new Error(`Line ${lineNumber}: invalid number`);
+      }
+
+      if (name === "straight") {
+        return { type: "straight", value, line: lineNumber, label: raw };
+      }
+
+      if (name === "turn") {
+        return { type: "turn", value, line: lineNumber, label: raw };
+      }
+
+      if (name === "drop") {
+        if (!Number.isInteger(value) || value < 1 || value > 4) {
+          throw new Error(`Line ${lineNumber}: drop expects 1..4`);
+        }
+        return { type: "drop", value: String(value), line: lineNumber, label: raw };
+      }
+
+      throw new Error(`Line ${lineNumber}: unknown command "${name}"`);
+    }
+
+    function parseCommandBlock(lines, startIndex, needsClosingBrace, scope = {}) {
+      const commands = [];
+      let i = startIndex;
+
+      while (i < lines.length) {
+        const raw = lines[i].trim();
+        const lineNumber = i + 1;
+        if (!raw || isColorMapLine(raw)) {
+          i += 1;
+          continue;
+        }
+
+        if (raw === "}") {
+          if (!needsClosingBrace) {
+            throw new Error(`Line ${lineNumber}: unexpected }`);
+          }
+          return { commands, nextIndex: i + 1 };
+        }
+
+        const forMatch = raw.match(/^for\s+([a-z_][a-z0-9_]*)\s+in\s+(.+?)\s*\{\s*$/i);
+        if (forMatch) {
+          const variableName = forMatch[1].toLowerCase();
+          const colors = parseColorList(forMatch[2], lineNumber);
+          let nextIndex = i + 1;
+
+          for (const colorName of colors) {
+            const block = parseCommandBlock(lines, i + 1, true, {
+              ...scope,
+              [variableName]: colorName
+            });
+            commands.push(...block.commands);
+            nextIndex = block.nextIndex;
+          }
+
+          i = nextIndex;
+          continue;
+        }
+
+        if (/^for\b/i.test(raw)) {
+          throw new Error(`Line ${lineNumber}: for expects "for color in colors {"`);
+        }
+
+        const ifMatch = raw.match(/^if\s+(.+?)\s*\{\s*$/i);
+        if (ifMatch) {
+          const conditionResult = evaluateIfCondition(ifMatch[1], lineNumber, scope);
+          const block = parseCommandBlock(lines, i + 1, true, scope);
+          if (conditionResult) {
+            commands.push(...block.commands);
+          }
+          i = block.nextIndex;
+          continue;
+        }
+
+        if (/^if\b/i.test(raw)) {
+          throw new Error(`Line ${lineNumber}: if expects "if Color == 1 {"`);
+        }
+
+        commands.push(parseCommandLine(raw, lineNumber));
+        i += 1;
+      }
+
+      if (needsClosingBrace) {
+        throw new Error(`Line ${lines.length}: missing }`);
+      }
+
+      return { commands, nextIndex: i };
+    }
+
+    function parseProgram(source) {
+      const lines = source.split(/\r?\n/);
+      const { commands } = parseCommandBlock(lines, 0, false);
+      return commands;
+    }
+
+    function setProgramStatus(text, mode = "") {
+      programStatus.textContent = text;
+      programStatus.className = "program-status";
+      if (mode) {
+        programStatus.classList.add(`is-${mode}`);
+      }
+    }
+
+    function setProgramRunning(running) {
+      programState.running = running;
+      runProgramButton.textContent = running ? "Pause" : "Run";
+      runProgramButton.classList.toggle("secondary-button", programState.paused);
+    }
+
+    function clearProgramExecution(status = "Ready") {
+      programState.running = false;
+      programState.paused = false;
+      programState.commands = [];
+      programState.index = 0;
+      programState.active = null;
+      setProgramRunning(false);
+      setProgramStatus(status);
+    }
+
+    function pauseProgramExecution() {
+      if (!programState.running) return;
+
+      programState.running = false;
+      programState.paused = true;
+      setProgramRunning(false);
+      setProgramStatus("Paused");
+    }
+
+    function resumeProgramExecution() {
+      if (!programState.paused || programState.commands.length === 0) {
+        startProgram();
+        return;
+      }
+
+      programState.paused = false;
+      setProgramRunning(true);
+      const command = programState.active || programState.commands[programState.index];
+      if (command) {
+        setProgramStatus(`Line ${command.line}: ${command.label}`, "running");
+      }
+    }
+
+    function startProgram() {
+      resetRobot({ stopProgram: false });
+
+      let commands;
+      try {
+        commands = parseProgram(programInput.value);
+      } catch (error) {
+        clearProgramExecution(error.message);
+        setProgramStatus(error.message, "error");
+        return;
+      }
+
+      programState.commands = commands;
+      programState.index = 0;
+      programState.active = null;
+      programState.paused = false;
+
+      if (commands.length === 0) {
+        clearProgramExecution("Done");
+        setProgramStatus("Done", "done");
+        return;
+      }
+
+      setProgramRunning(true);
+      setProgramStatus(`Line ${commands[0].line}: ${commands[0].label}`, "running");
+    }
+
+    function beginProgramCommand(command) {
+      if (command.type === "straight") {
+        return {
+          ...command,
+          remainingMm: Math.abs(command.value),
+          direction: Math.sign(command.value) || 1,
+          speedMmS: 0
+        };
+      }
+
+      if (command.type === "turn") {
+        return {
+          ...command,
+          targetRad: normalizeAngle(robot.headingRad + command.value * Math.PI / 180),
+          remainingRad: Math.abs(command.value) * Math.PI / 180,
+          direction: Math.sign(command.value) || 1,
+          speedRadS: 0
+        };
+      }
+
+      if (command.type === "turn_one") {
+        const pivotLocalX = command.movingWheel === "left"
+          ? HALF_WHEEL_TRACK_MM
+          : -HALF_WHEEL_TRACK_MM;
+        const pivot = localToWorld(pivotLocalX, 0);
+        return {
+          ...command,
+          targetRad: normalizeAngle(robot.headingRad + command.value * Math.PI / 180),
+          remainingRad: Math.abs(command.value) * Math.PI / 180,
+          direction: Math.sign(command.value) || 1,
+          pivotLocalX,
+          pivotX: pivot.xMm,
+          pivotY: pivot.yMm,
+          speedRadS: 0
+        };
+      }
+
+      return command;
+    }
+
+    function completeProgramCommand() {
+      programState.index += 1;
+      programState.active = null;
+
+      if (programState.index >= programState.commands.length) {
+        clearProgramExecution("Done");
+        setProgramStatus("Done", "done");
+        return;
+      }
+
+      const next = programState.commands[programState.index];
+      setProgramStatus(`Line ${next.line}: ${next.label}`, "running");
+    }
+
+    function failProgram(message) {
+      clearProgramExecution(message);
+      setProgramStatus(message, "error");
+    }
+
+    function updateProgram(dtSeconds) {
+      if (!programState.running) return;
+
+      if (!programState.active) {
+        const command = programState.commands[programState.index];
+        programState.active = beginProgramCommand(command);
+      }
+
+      const command = programState.active;
+
+      if (command.type === "drop") {
+        dropArtefact(command.value);
+        completeProgramCommand();
+        return;
+      }
+
+      if (command.type === "straight") {
+        if (command.remainingMm <= 0) {
+          completeProgramCommand();
+          return;
+        }
+
+        const motion = acceleratedStep(
+          command.remainingMm,
+          command.speedMmS,
+          forwardSpeedMmS,
+          accelerationMmS2,
+          dtSeconds
+        );
+        moveRobotBy(motion.step * command.direction);
+
+        command.remainingMm -= motion.step;
+        command.speedMmS = motion.speed;
+        if (command.remainingMm <= 0.001) {
+          completeProgramCommand();
+        }
+        return;
+      }
+
+      if (command.type === "turn") {
+        if (command.remainingRad <= 0) {
+          tryApplyRobotPose(robot.xMm, robot.yMm, command.targetRad);
+          completeProgramCommand();
+          return;
+        }
+
+        const motion = acceleratedStep(
+          command.remainingRad,
+          command.speedRadS,
+          turnSpeedRadS,
+          turnAccelerationRadS2,
+          dtSeconds
+        );
+        const stepRad = motion.step;
+        const nextHeading = normalizeAngle(robot.headingRad + stepRad * command.direction);
+        tryApplyRobotPose(robot.xMm, robot.yMm, nextHeading);
+        command.remainingRad -= stepRad;
+        command.speedRadS = motion.speed;
+
+        if (command.remainingRad <= 0.001) {
+          tryApplyRobotPose(robot.xMm, robot.yMm, command.targetRad);
+          completeProgramCommand();
+        }
+        return;
+      }
+
+      if (command.type === "turn_one") {
+        if (command.remainingRad <= 0) {
+          moveRobotAroundWheelPivot(command.pivotX, command.pivotY, command.pivotLocalX, command.targetRad);
+          completeProgramCommand();
+          return;
+        }
+
+        const motion = acceleratedStep(
+          command.remainingRad,
+          command.speedRadS,
+          turnSpeedRadS,
+          turnAccelerationRadS2,
+          dtSeconds
+        );
+        const stepRad = motion.step;
+        const nextHeading = normalizeAngle(robot.headingRad + stepRad * command.direction);
+        moveRobotAroundWheelPivot(command.pivotX, command.pivotY, command.pivotLocalX, nextHeading);
+
+        command.remainingRad -= stepRad;
+        command.speedRadS = motion.speed;
+        if (command.remainingRad <= 0.001) {
+          moveRobotAroundWheelPivot(command.pivotX, command.pivotY, command.pivotLocalX, command.targetRad);
+          completeProgramCommand();
+        }
+      }
+    }
+
+    function drawField() {
+      ctx.clearRect(0, 0, WORLD_MM, WORLD_MM);
+
+      if (background.complete && background.naturalWidth > 0) {
+        ctx.drawImage(background, 0, 0, WORLD_MM, WORLD_MM);
+      } else {
+        ctx.fillStyle = "#d9ded5";
+        ctx.fillRect(0, 0, WORLD_MM, WORLD_MM);
+      }
+
+      ctx.strokeStyle = "rgba(17, 24, 39, 0.52)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, WORLD_MM, WORLD_MM);
+    }
+
+    function drawArtefact(artefact, xMm, yMm, headingRad) {
+      ctx.save();
+      ctx.translate(xMm, yMm);
+      ctx.rotate(headingRad);
+      ctx.fillStyle = artefact.color;
+      ctx.strokeStyle = "rgba(17, 24, 39, 0.8)";
+      ctx.lineWidth = 3;
+      ctx.fillRect(-HALF_ARTIFACT_MM, -HALF_ARTIFACT_MM, ARTIFACT_SIZE_MM, ARTIFACT_SIZE_MM);
+      ctx.strokeRect(-HALF_ARTIFACT_MM, -HALF_ARTIFACT_MM, ARTIFACT_SIZE_MM, ARTIFACT_SIZE_MM);
+      ctx.fillStyle = artefact.textColor;
+      ctx.font = "bold 24px Arial, Helvetica, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(artefact.id, 0, 1);
+      ctx.restore();
+    }
+
+    function drawDroppedArtefacts() {
+      for (const artefact of artefacts) {
+        if (artefact.dropped) {
+          drawArtefact(artefact, artefact.xMm, artefact.yMm, artefact.headingRad);
+        }
+      }
+    }
+
+    function drawTrail() {
+      if (!trailToggle.checked || trail.length < 2) return;
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(37, 99, 235, 0.85)";
+      ctx.lineWidth = 5;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(trail[0].xMm, trail[0].yMm);
+      for (let i = 1; i < trail.length; i += 1) {
+        ctx.lineTo(trail[i].xMm, trail[i].yMm);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawRobot() {
+      ctx.save();
+      ctx.translate(robot.xMm, robot.yMm);
+      ctx.rotate(robot.headingRad);
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.lineWidth = 4;
+      ctx.fillRect(-HALF_ROBOT_MM, -HALF_ROBOT_MM, ROBOT_SIZE_MM, ROBOT_SIZE_MM);
+      ctx.strokeRect(-HALF_ROBOT_MM, -HALF_ROBOT_MM, ROBOT_SIZE_MM, ROBOT_SIZE_MM);
+
+      ctx.fillStyle = "rgba(17, 24, 39, 0.95)";
+      ctx.strokeStyle = "rgba(248, 250, 252, 0.45)";
+      ctx.lineWidth = 2;
+      for (const wheelX of [-HALF_WHEEL_TRACK_MM, HALF_WHEEL_TRACK_MM]) {
+        ctx.fillRect(
+          wheelX - WHEEL_WIDTH_MM / 2,
+          -WHEEL_DIAMETER_MM / 2,
+          WHEEL_WIDTH_MM,
+          WHEEL_DIAMETER_MM
+        );
+        ctx.strokeRect(
+          wheelX - WHEEL_WIDTH_MM / 2,
+          -WHEEL_DIAMETER_MM / 2,
+          WHEEL_WIDTH_MM,
+          WHEEL_DIAMETER_MM
+        );
+      }
+
+      for (const artefact of artefacts) {
+        if (!artefact.dropped) {
+          drawArtefact(artefact, artefact.localX, artefact.localY, 0);
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function draw() {
+      drawField();
+      drawTrail();
+      drawDroppedArtefacts();
+      drawRobot();
+    }
+
+    function updateStatus() {
+      const headingDeg = normalizeAngle(robot.headingRad) * 180 / Math.PI;
+      xValue.textContent = `${robot.xMm.toFixed(1)} mm`;
+      yValue.textContent = `${robot.yMm.toFixed(1)} mm`;
+      headingValue.textContent = `${headingDeg.toFixed(1)} deg`;
+    }
+
+    function updateDropButtons() {
+      for (const button of dropButtons) {
+        const artefact = artefacts.find((item) => item.id === button.dataset.dropId);
+        const dropped = Boolean(artefact && artefact.dropped);
+        button.disabled = dropped;
+        if (artefact && !dropped) {
+          button.style.background = artefact.color;
+          button.style.borderColor = artefact.color;
+          button.style.color = artefact.textColor;
+        } else {
+          button.style.background = "#e4e7ec";
+          button.style.borderColor = "#cfd4dc";
+          button.style.color = "#667085";
+        }
+      }
+    }
+
+    function tick(now) {
+      const dtSeconds = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+      updateProgram(dtSeconds);
+      updateMotion(dtSeconds);
+      draw();
+      requestAnimationFrame(tick);
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (!keyboardToggle.checked) return;
+
+      if (event.key.startsWith("Arrow")) {
+        event.preventDefault();
+        if (!programState.running) {
+          keys.add(event.key);
+        }
+      }
+
+      if (event.key.toLowerCase() === "r") {
+        resetRobot();
+      }
+
+      if (["1", "2", "3", "4"].includes(event.key) && !programState.running) {
+        event.preventDefault();
+        dropArtefact(event.key);
+      }
+    });
+
+    window.addEventListener("keyup", (event) => {
+      if (!keyboardToggle.checked) return;
+
+      if (event.key.startsWith("Arrow")) {
+        event.preventDefault();
+        keys.delete(event.key);
+      }
+    });
+
+    window.addEventListener("blur", () => {
+      keys.clear();
+    });
+
+    resetButton.addEventListener("click", resetRobot);
+    runProgramButton.addEventListener("click", () => {
+      if (programState.running) {
+        pauseProgramExecution();
+      } else if (programState.paused) {
+        resumeProgramExecution();
+      } else {
+        startProgram();
+      }
+    });
+    resetProgramButton.addEventListener("click", resetRobot);
+
+    for (const button of dropButtons) {
+      button.addEventListener("click", () => dropArtefact(button.dataset.dropId));
+    }
+
+    trailToggle.addEventListener("change", () => {
+      if (!trailToggle.checked) trail.length = 0;
+      if (trailToggle.checked) addTrailPoint();
+    });
+
+    keyboardToggle.addEventListener("change", () => {
+      if (!keyboardToggle.checked) {
+        keys.clear();
+      }
+    });
+
+    manualColorsToggle.addEventListener("change", updateColorMode);
+
+    for (const select of colorSelects) {
+      select.addEventListener("change", refreshColorsAfterManualChange);
+    }
+
+    speedInput.addEventListener("input", () => {
+      forwardSpeedMmS = Number(speedInput.value);
+      speedValue.textContent = `${forwardSpeedMmS} mm/s`;
+    });
+
+    accelInput.addEventListener("input", () => {
+      accelerationMmS2 = Number(accelInput.value);
+      accelValue.textContent = `${accelerationMmS2} mm/s2`;
+    });
+
+    turnSpeedInput.addEventListener("input", () => {
+      const turnSpeedDegS = Number(turnSpeedInput.value);
+      turnSpeedRadS = turnSpeedDegS * Math.PI / 180;
+      turnSpeedValue.textContent = `${turnSpeedDegS} deg/s`;
+    });
+
+    turnAccelInput.addEventListener("input", () => {
+      const turnAccelDegS2 = Number(turnAccelInput.value);
+      turnAccelerationRadS2 = turnAccelDegS2 * Math.PI / 180;
+      turnAccelValue.textContent = `${turnAccelDegS2} deg/s2`;
+    });
+
+    programInput.addEventListener("input", saveProgram);
+
+    background.addEventListener("load", () => {
+      assetError.classList.remove("is-visible");
+      draw();
+    });
+
+    background.addEventListener("error", () => {
+      assetError.classList.add("is-visible");
+    });
+
+    setupColorSelects();
+    loadSavedProgram();
+    loadColorSettings();
+    resetRobot();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
