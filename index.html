@@ -587,13 +587,14 @@ drop(1)</textarea>
               <div><dt><code>turn_one(left, 90)</code></dt><dd>поворот одним колесом: <code>left</code> или <code>right</code></dd></div>
               <div><dt><code>drop(1)</code></dt><dd>оставить кубик 1..4</dd></div>
               <div><dt><code>if Yellow == 1 {}</code></dt><dd>условие по цвету: 1..4 или <code>None</code></dd></div>
+              <div><dt><code>if Yellow == 2 and Blue == 1 {}</code></dt><dd>можно объединять условия через <code>and</code> / <code>or</code></dd></div>
               <div><dt><code>if color != None {}</code></dt><dd>условие внутри цикла</dd></div>
               <div><dt><code>elif color == 2 {}</code> / <code>else if color == 2 {}</code></dt><dd>следующая ветка той же цепочки</dd></div>
               <div><dt><code>else {}</code></dt><dd>ветка, если выше ничего не сработало</dd></div>
               <div><dt><code>for color in colors {}</code></dt><dd>цикл: Yellow, Blue, Black, Green, Red</dd></div>
             </dl>
             <pre>for color in colors {
-  if color == 1 {
+  if color == 1 and color != None {
     straight(130)
     drop(1)
   } elif color == 2 {
@@ -1205,9 +1206,11 @@ drop(1)</textarea>
       updateDropButtons();
     }
 
-    function colorCubeId(colorName) {
+    function colorCubeId(colorName, parseState = null) {
       const normalizedName = colorName.toLowerCase();
-      const artefact = artefacts.find((item) => item.name === normalizedName);
+      const artefact = artefacts.find((item) => {
+        return item.name === normalizedName && !parseState?.droppedIds.has(item.id);
+      });
       return artefact ? artefact.id : "None";
     }
 
@@ -1246,22 +1249,142 @@ drop(1)</textarea>
       });
     }
 
-    function evaluateIfCondition(source, lineNumber, scope) {
-      let condition = source.trim();
-      if (condition.startsWith("(") && condition.endsWith(")")) {
-        condition = condition.slice(1, -1).trim();
+    function createParseState() {
+      return {
+        droppedIds: new Set()
+      };
+    }
+
+    function cloneParseState(parseState) {
+      return {
+        droppedIds: new Set(parseState.droppedIds)
+      };
+    }
+
+    function commitParseState(target, source) {
+      target.droppedIds.clear();
+      for (const id of source.droppedIds) {
+        target.droppedIds.add(id);
+      }
+    }
+
+    function applyCommandToParseState(command, parseState) {
+      if (command.type === "drop") {
+        parseState.droppedIds.add(command.value);
+      }
+    }
+
+    function isIdentifierCharacter(character) {
+      return Boolean(character && /[a-z0-9_]/i.test(character));
+    }
+
+    function isWordOperatorAt(source, index, word) {
+      return source.slice(index, index + word.length).toLowerCase() === word
+        && !isIdentifierCharacter(source[index - 1])
+        && !isIdentifierCharacter(source[index + word.length]);
+    }
+
+    function splitLogicalExpression(source, word, symbol) {
+      const parts = [];
+      let depth = 0;
+      let start = 0;
+
+      for (let i = 0; i < source.length; i += 1) {
+        const character = source[i];
+        if (character === "(") {
+          depth += 1;
+          continue;
+        }
+
+        if (character === ")") {
+          depth -= 1;
+          if (depth < 0) {
+            break;
+          }
+          continue;
+        }
+
+        if (depth === 0) {
+          if (source.slice(i, i + symbol.length) === symbol) {
+            parts.push(source.slice(start, i).trim());
+            start = i + symbol.length;
+            i = start - 1;
+            continue;
+          }
+
+          if (isWordOperatorAt(source, i, word)) {
+            parts.push(source.slice(start, i).trim());
+            start = i + word.length;
+            i = start - 1;
+          }
+        }
       }
 
+      if (parts.length === 0) {
+        return [source.trim()];
+      }
+
+      parts.push(source.slice(start).trim());
+      return parts;
+    }
+
+    function hasEnclosingParentheses(source) {
+      if (!source.startsWith("(") || !source.endsWith(")")) {
+        return false;
+      }
+
+      let depth = 0;
+      for (let i = 0; i < source.length; i += 1) {
+        if (source[i] === "(") {
+          depth += 1;
+        } else if (source[i] === ")") {
+          depth -= 1;
+        }
+
+        if (depth === 0 && i < source.length - 1) {
+          return false;
+        }
+      }
+
+      return depth === 0;
+    }
+
+    function stripEnclosingParentheses(source) {
+      let result = source.trim();
+      while (hasEnclosingParentheses(result)) {
+        result = result.slice(1, -1).trim();
+      }
+      return result;
+    }
+
+    function evaluateComparison(source, lineNumber, scope, parseState) {
+      const condition = stripEnclosingParentheses(source);
       const match = condition.match(/^([a-z_][a-z0-9_]*)\s*(==|=|!=)\s*(1|2|3|4|none)$/i);
       if (!match) {
-        throw new Error(`Line ${lineNumber}: if expects Color == 1 or Color == None`);
+        throw new Error(`Line ${lineNumber}: if expects Color == 1, Color == None, and/or`);
       }
 
-      const actual = colorCubeId(resolveColorName(match[1], scope, lineNumber));
+      const actual = colorCubeId(resolveColorName(match[1], scope, lineNumber), parseState);
       const operator = match[2];
       const expected = match[3].toLowerCase() === "none" ? "None" : match[3];
 
       return operator === "!=" ? actual !== expected : actual === expected;
+    }
+
+    function evaluateAndExpression(source, lineNumber, scope, parseState) {
+      const parts = splitLogicalExpression(stripEnclosingParentheses(source), "and", "&&");
+      if (parts.some((part) => part.length === 0)) {
+        throw new Error(`Line ${lineNumber}: if has empty and condition`);
+      }
+      return parts.every((part) => evaluateComparison(part, lineNumber, scope, parseState));
+    }
+
+    function evaluateIfCondition(source, lineNumber, scope, parseState) {
+      const parts = splitLogicalExpression(stripEnclosingParentheses(source), "or", "||");
+      if (parts.some((part) => part.length === 0)) {
+        throw new Error(`Line ${lineNumber}: if has empty or condition`);
+      }
+      return parts.some((part) => evaluateAndExpression(part, lineNumber, scope, parseState));
     }
 
     function normalizeProgramLines(source) {
@@ -1325,7 +1448,7 @@ drop(1)</textarea>
       throw new Error(`Line ${lineNumber}: unknown command "${name}"`);
     }
 
-    function parseCommandBlock(lines, startIndex, needsClosingBrace, scope = {}) {
+    function parseCommandBlock(lines, startIndex, needsClosingBrace, scope = {}, parseState = createParseState()) {
       const commands = [];
       let i = startIndex;
 
@@ -1354,7 +1477,7 @@ drop(1)</textarea>
             const block = parseCommandBlock(lines, i + 1, true, {
               ...scope,
               [variableName]: colorName
-            });
+            }, parseState);
             commands.push(...block.commands);
             nextIndex = block.nextIndex;
           }
@@ -1369,7 +1492,7 @@ drop(1)</textarea>
 
         const ifMatch = raw.match(/^if\s+(.+?)\s*\{\s*$/i);
         if (ifMatch) {
-          const chain = parseIfChain(lines, i, ifMatch, scope);
+          const chain = parseIfChain(lines, i, ifMatch, scope, parseState);
           commands.push(...chain.commands);
           i = chain.nextIndex;
           continue;
@@ -1383,7 +1506,9 @@ drop(1)</textarea>
           throw new Error(`Line ${lineNumber}: ${raw.split(/\s+/)[0]} without matching if`);
         }
 
-        commands.push(parseCommandLine(raw, lineNumber));
+        const command = parseCommandLine(raw, lineNumber);
+        commands.push(command);
+        applyCommandToParseState(command, parseState);
         i += 1;
       }
 
@@ -1395,13 +1520,15 @@ drop(1)</textarea>
       return { commands, nextIndex: i };
     }
 
-    function parseIfChain(lines, ifIndex, ifMatch, scope) {
+    function parseIfChain(lines, ifIndex, ifMatch, scope, parseState) {
       const commands = [];
-      let matched = evaluateIfCondition(ifMatch[1], lines[ifIndex].lineNumber, scope);
-      let block = parseCommandBlock(lines, ifIndex + 1, true, scope);
+      let matched = evaluateIfCondition(ifMatch[1], lines[ifIndex].lineNumber, scope, parseState);
+      let branchState = cloneParseState(parseState);
+      let block = parseCommandBlock(lines, ifIndex + 1, true, scope, branchState);
 
       if (matched) {
         commands.push(...block.commands);
+        commitParseState(parseState, branchState);
       }
 
       let nextIndex = block.nextIndex;
@@ -1416,11 +1543,13 @@ drop(1)</textarea>
 
         const elifMatch = raw.match(/^(?:elif|else\s+if)\s+(.+?)\s*\{\s*$/i);
         if (elifMatch) {
-          const conditionResult = evaluateIfCondition(elifMatch[1], lineNumber, scope);
-          block = parseCommandBlock(lines, nextIndex + 1, true, scope);
+          const conditionResult = evaluateIfCondition(elifMatch[1], lineNumber, scope, parseState);
+          branchState = cloneParseState(parseState);
+          block = parseCommandBlock(lines, nextIndex + 1, true, scope, branchState);
 
           if (!matched && conditionResult) {
             commands.push(...block.commands);
+            commitParseState(parseState, branchState);
             matched = true;
           }
 
@@ -1429,9 +1558,11 @@ drop(1)</textarea>
         }
 
         if (/^else\s*\{\s*$/i.test(raw)) {
-          block = parseCommandBlock(lines, nextIndex + 1, true, scope);
+          branchState = cloneParseState(parseState);
+          block = parseCommandBlock(lines, nextIndex + 1, true, scope, branchState);
           if (!matched) {
             commands.push(...block.commands);
+            commitParseState(parseState, branchState);
             matched = true;
           }
           nextIndex = block.nextIndex;
@@ -1450,7 +1581,7 @@ drop(1)</textarea>
 
     function parseProgram(source) {
       const lines = normalizeProgramLines(source);
-      const { commands } = parseCommandBlock(lines, 0, false);
+      const { commands } = parseCommandBlock(lines, 0, false, {}, createParseState());
       return commands;
     }
 
