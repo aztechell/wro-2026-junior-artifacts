@@ -588,12 +588,17 @@ drop(1)</textarea>
               <div><dt><code>drop(1)</code></dt><dd>оставить кубик 1..4</dd></div>
               <div><dt><code>if Yellow == 1 {}</code></dt><dd>условие по цвету: 1..4 или <code>None</code></dd></div>
               <div><dt><code>if color != None {}</code></dt><dd>условие внутри цикла</dd></div>
+              <div><dt><code>elif color == 2 {}</code> / <code>else if color == 2 {}</code></dt><dd>следующая ветка той же цепочки</dd></div>
+              <div><dt><code>else {}</code></dt><dd>ветка, если выше ничего не сработало</dd></div>
               <div><dt><code>for color in colors {}</code></dt><dd>цикл: Yellow, Blue, Black, Green, Red</dd></div>
             </dl>
             <pre>for color in colors {
   if color == 1 {
     straight(130)
     drop(1)
+  } elif color == 2 {
+    turn(-90)
+    drop(2)
   }
 }</pre>
           </div>
@@ -1259,6 +1264,18 @@ drop(1)</textarea>
       return operator === "!=" ? actual !== expected : actual === expected;
     }
 
+    function normalizeProgramLines(source) {
+      return source.split(/\r?\n/).flatMap((text, index) => {
+        return text
+          .replace(/}\s*(?=(?:elif|else)\b)/gi, "}\n")
+          .split("\n")
+          .map((part) => ({
+            text: part,
+            lineNumber: index + 1
+          }));
+      });
+    }
+
     function parseCommandLine(raw, lineNumber) {
       const turnOneMatch = raw.match(/^turn_one\s*\(\s*(left|right)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)$/i);
       if (turnOneMatch) {
@@ -1313,8 +1330,8 @@ drop(1)</textarea>
       let i = startIndex;
 
       while (i < lines.length) {
-        const raw = lines[i].trim();
-        const lineNumber = i + 1;
+        const raw = lines[i].text.trim();
+        const lineNumber = lines[i].lineNumber;
         if (!raw || isColorMapLine(raw)) {
           i += 1;
           continue;
@@ -1352,12 +1369,9 @@ drop(1)</textarea>
 
         const ifMatch = raw.match(/^if\s+(.+?)\s*\{\s*$/i);
         if (ifMatch) {
-          const conditionResult = evaluateIfCondition(ifMatch[1], lineNumber, scope);
-          const block = parseCommandBlock(lines, i + 1, true, scope);
-          if (conditionResult) {
-            commands.push(...block.commands);
-          }
-          i = block.nextIndex;
+          const chain = parseIfChain(lines, i, ifMatch, scope);
+          commands.push(...chain.commands);
+          i = chain.nextIndex;
           continue;
         }
 
@@ -1365,19 +1379,77 @@ drop(1)</textarea>
           throw new Error(`Line ${lineNumber}: if expects "if Color == 1 {"`);
         }
 
+        if (/^(?:elif|else\s+if|else)\b/i.test(raw)) {
+          throw new Error(`Line ${lineNumber}: ${raw.split(/\s+/)[0]} without matching if`);
+        }
+
         commands.push(parseCommandLine(raw, lineNumber));
         i += 1;
       }
 
       if (needsClosingBrace) {
-        throw new Error(`Line ${lines.length}: missing }`);
+        const lastLine = lines.length > 0 ? lines[lines.length - 1].lineNumber : 1;
+        throw new Error(`Line ${lastLine}: missing }`);
       }
 
       return { commands, nextIndex: i };
     }
 
+    function parseIfChain(lines, ifIndex, ifMatch, scope) {
+      const commands = [];
+      let matched = evaluateIfCondition(ifMatch[1], lines[ifIndex].lineNumber, scope);
+      let block = parseCommandBlock(lines, ifIndex + 1, true, scope);
+
+      if (matched) {
+        commands.push(...block.commands);
+      }
+
+      let nextIndex = block.nextIndex;
+      while (nextIndex < lines.length) {
+        const raw = lines[nextIndex].text.trim();
+        const lineNumber = lines[nextIndex].lineNumber;
+
+        if (!raw || isColorMapLine(raw)) {
+          nextIndex += 1;
+          continue;
+        }
+
+        const elifMatch = raw.match(/^(?:elif|else\s+if)\s+(.+?)\s*\{\s*$/i);
+        if (elifMatch) {
+          const conditionResult = evaluateIfCondition(elifMatch[1], lineNumber, scope);
+          block = parseCommandBlock(lines, nextIndex + 1, true, scope);
+
+          if (!matched && conditionResult) {
+            commands.push(...block.commands);
+            matched = true;
+          }
+
+          nextIndex = block.nextIndex;
+          continue;
+        }
+
+        if (/^else\s*\{\s*$/i.test(raw)) {
+          block = parseCommandBlock(lines, nextIndex + 1, true, scope);
+          if (!matched) {
+            commands.push(...block.commands);
+            matched = true;
+          }
+          nextIndex = block.nextIndex;
+          break;
+        }
+
+        if (/^else\b/i.test(raw)) {
+          throw new Error(`Line ${lineNumber}: else expects "else {" or "else if Color == 1 {"`);
+        }
+
+        break;
+      }
+
+      return { commands, nextIndex };
+    }
+
     function parseProgram(source) {
-      const lines = source.split(/\r?\n/);
+      const lines = normalizeProgramLines(source);
       const { commands } = parseCommandBlock(lines, 0, false);
       return commands;
     }
