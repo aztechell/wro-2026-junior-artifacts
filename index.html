@@ -589,17 +589,18 @@ drop(1)</textarea>
               <div><dt><code>if Yellow == 1 {}</code></dt><dd>условие по цвету: 1..4 или <code>None</code></dd></div>
               <div><dt><code>if Yellow == 2 and Blue == 1 {}</code></dt><dd>можно объединять условия через <code>and</code> / <code>or</code></dd></div>
               <div><dt><code>if color != None {}</code></dt><dd>условие внутри цикла</dd></div>
+              <div><dt><code>if next == 1 {}</code></dt><dd>проверка следующего цвета внутри <code>for</code>; после <code>drop()</code> кубик считается <code>None</code></dd></div>
               <div><dt><code>elif color == 2 {}</code> / <code>else if color == 2 {}</code></dt><dd>следующая ветка той же цепочки</dd></div>
               <div><dt><code>else {}</code></dt><dd>ветка, если выше ничего не сработало</dd></div>
               <div><dt><code>for color in colors {}</code></dt><dd>цикл: Yellow, Blue, Black, Green, Red</dd></div>
             </dl>
             <pre>for color in colors {
-  if color == 1 and color != None {
-    straight(130)
-    drop(1)
-  } elif color == 2 {
+  if color == 2 {
     turn(-90)
     drop(2)
+    if next == 1 {
+      drop(1)
+    }
   }
 }</pre>
           </div>
@@ -1473,9 +1474,13 @@ drop(1)</textarea>
           const colors = parseColorList(forMatch[2], lineNumber);
           let nextIndex = i + 1;
 
-          for (const colorName of colors) {
+          for (let colorIndex = 0; colorIndex < colors.length; colorIndex += 1) {
+            const colorName = colors[colorIndex];
+            const nextColorName = colors[colorIndex + 1] || "__none__";
             const block = parseCommandBlock(lines, i + 1, true, {
               ...scope,
+              next: nextColorName,
+              next_color: nextColorName,
               [variableName]: colorName
             }, parseState);
             commands.push(...block.commands);
