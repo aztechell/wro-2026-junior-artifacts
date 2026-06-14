@@ -585,11 +585,16 @@ drop(1)</textarea>
               <div><dt><code>straight(100)</code></dt><dd>ехать вперед, мм; минус едет назад</dd></div>
               <div><dt><code>turn(90)</code></dt><dd>поворот на месте, градусы; плюс вправо</dd></div>
               <div><dt><code>turn_one(left, 90)</code></dt><dd>поворот одним колесом: <code>left</code> или <code>right</code></dd></div>
-              <div><dt><code>drop(1)</code></dt><dd>оставить кубик 1..4</dd></div>
-              <div><dt><code>if Yellow == 1 {}</code></dt><dd>условие по цвету: 1..4 или <code>None</code></dd></div>
+              <div><dt><code>drop(1)</code></dt><dd>оставить кубик 1..4; цвет в условиях не меняется</dd></div>
+              <div><dt><code>Yellow = 1</code></dt><dd>присвоить цвету номер: 1..5 или <code>None</code></dd></div>
+              <div><dt><code>color = 1</code></dt><dd>присвоить текущему цвету внутри <code>for</code></dd></div>
+              <div><dt><code>next = 5</code></dt><dd>присвоить следующему цвету внутри <code>for</code></dd></div>
+              <div><dt><code>previous = 5</code></dt><dd>присвоить предыдущему цвету внутри <code>for</code></dd></div>
+              <div><dt><code>if Yellow == 1 {}</code></dt><dd>условие по цвету: 1..5 или <code>None</code></dd></div>
               <div><dt><code>if Yellow == 2 and Blue == 1 {}</code></dt><dd>можно объединять условия через <code>and</code> / <code>or</code></dd></div>
               <div><dt><code>if color != None {}</code></dt><dd>условие внутри цикла</dd></div>
-              <div><dt><code>if next == 1 {}</code></dt><dd>проверка следующего цвета внутри <code>for</code>; после <code>drop()</code> кубик считается <code>None</code></dd></div>
+              <div><dt><code>if next == 1 {}</code></dt><dd>проверка следующего цвета внутри <code>for</code></dd></div>
+              <div><dt><code>if previous == 1 {}</code></dt><dd>проверка предыдущего цвета внутри <code>for</code></dd></div>
               <div><dt><code>elif color == 2 {}</code> / <code>else if color == 2 {}</code></dt><dd>следующая ветка той же цепочки</dd></div>
               <div><dt><code>else {}</code></dt><dd>ветка, если выше ничего не сработало</dd></div>
               <div><dt><code>for color in colors {}</code></dt><dd>цикл: Yellow, Blue, Black, Green, Red</dd></div>
@@ -600,6 +605,10 @@ drop(1)</textarea>
     drop(2)
     if next == 1 {
       drop(1)
+      next = 5
+    }
+    if previous == 3 {
+      previous = 5
     }
   }
 }</pre>
@@ -1209,9 +1218,12 @@ drop(1)</textarea>
 
     function colorCubeId(colorName, parseState = null) {
       const normalizedName = colorName.toLowerCase();
-      const artefact = artefacts.find((item) => {
-        return item.name === normalizedName && !parseState?.droppedIds.has(item.id);
-      });
+
+      if (parseState?.assignedColorIds.has(normalizedName)) {
+        return parseState.assignedColorIds.get(normalizedName);
+      }
+
+      const artefact = artefacts.find((item) => item.name === normalizedName);
       return artefact ? artefact.id : "None";
     }
 
@@ -1252,26 +1264,26 @@ drop(1)</textarea>
 
     function createParseState() {
       return {
-        droppedIds: new Set()
+        assignedColorIds: new Map()
       };
     }
 
     function cloneParseState(parseState) {
       return {
-        droppedIds: new Set(parseState.droppedIds)
+        assignedColorIds: new Map(parseState.assignedColorIds)
       };
     }
 
     function commitParseState(target, source) {
-      target.droppedIds.clear();
-      for (const id of source.droppedIds) {
-        target.droppedIds.add(id);
+      target.assignedColorIds.clear();
+      for (const [colorName, cubeId] of source.assignedColorIds) {
+        target.assignedColorIds.set(colorName, cubeId);
       }
     }
 
     function applyCommandToParseState(command, parseState) {
-      if (command.type === "drop") {
-        parseState.droppedIds.add(command.value);
+      if (command.type === "assign" && command.colorName !== null) {
+        parseState.assignedColorIds.set(command.colorName, command.value);
       }
     }
 
@@ -1360,9 +1372,9 @@ drop(1)</textarea>
 
     function evaluateComparison(source, lineNumber, scope, parseState) {
       const condition = stripEnclosingParentheses(source);
-      const match = condition.match(/^([a-z_][a-z0-9_]*)\s*(==|=|!=)\s*(1|2|3|4|none)$/i);
+      const match = condition.match(/^([a-z_][a-z0-9_]*)\s*(==|=|!=)\s*(1|2|3|4|5|none)$/i);
       if (!match) {
-        throw new Error(`Line ${lineNumber}: if expects Color == 1, Color == None, and/or`);
+        throw new Error(`Line ${lineNumber}: if expects Color == 1..5, Color == None, and/or`);
       }
 
       const actual = colorCubeId(resolveColorName(match[1], scope, lineNumber), parseState);
@@ -1400,7 +1412,42 @@ drop(1)</textarea>
       });
     }
 
-    function parseCommandLine(raw, lineNumber) {
+    function resolveAssignmentColorName(name, scope, lineNumber) {
+      const normalizedName = name.toLowerCase();
+
+      if (Object.prototype.hasOwnProperty.call(scope, normalizedName)) {
+        const resolvedName = scope[normalizedName];
+        if (resolvedName === "__none__") {
+          return null;
+        }
+        if (knownColorName(resolvedName)) {
+          return resolvedName;
+        }
+      }
+
+      if (knownColorName(normalizedName)) {
+        return normalizedName;
+      }
+
+      throw new Error(`Line ${lineNumber}: unknown color or variable "${name}"`);
+    }
+
+    function parseCommandLine(raw, lineNumber, scope = {}) {
+      const assignmentMatch = raw.match(/^([a-z_][a-z0-9_]*)\s*=\s*(1|2|3|4|5|none)$/i);
+      if (assignmentMatch) {
+        return {
+          type: "assign",
+          colorName: resolveAssignmentColorName(assignmentMatch[1], scope, lineNumber),
+          value: assignmentMatch[2].toLowerCase() === "none" ? "None" : assignmentMatch[2],
+          line: lineNumber,
+          label: raw
+        };
+      }
+
+      if (/^[a-z_][a-z0-9_]*\s*=/i.test(raw)) {
+        throw new Error(`Line ${lineNumber}: assignment expects Color = 1..5 or Color = None`);
+      }
+
       const turnOneMatch = raw.match(/^turn_one\s*\(\s*(left|right)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)$/i);
       if (turnOneMatch) {
         const value = Number(turnOneMatch[2]);
@@ -1476,9 +1523,12 @@ drop(1)</textarea>
 
           for (let colorIndex = 0; colorIndex < colors.length; colorIndex += 1) {
             const colorName = colors[colorIndex];
+            const previousColorName = colors[colorIndex - 1] || "__none__";
             const nextColorName = colors[colorIndex + 1] || "__none__";
             const block = parseCommandBlock(lines, i + 1, true, {
               ...scope,
+              previous: previousColorName,
+              previous_color: previousColorName,
               next: nextColorName,
               next_color: nextColorName,
               [variableName]: colorName
@@ -1511,7 +1561,7 @@ drop(1)</textarea>
           throw new Error(`Line ${lineNumber}: ${raw.split(/\s+/)[0]} without matching if`);
         }
 
-        const command = parseCommandLine(raw, lineNumber);
+        const command = parseCommandLine(raw, lineNumber, scope);
         commands.push(command);
         applyCommandToParseState(command, parseState);
         i += 1;
@@ -1735,6 +1785,11 @@ drop(1)</textarea>
 
       if (command.type === "drop") {
         dropArtefact(command.value);
+        completeProgramCommand();
+        return;
+      }
+
+      if (command.type === "assign") {
         completeProgramCommand();
         return;
       }
