@@ -137,7 +137,7 @@
       height: calc(100vh - 32px);
       min-height: 0;
       align-content: start;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
     }
 
     .program-header {
@@ -185,6 +185,93 @@
     .language-button.is-active {
       background: #eff6ff;
       color: #1d4ed8;
+    }
+
+    .program-tab-bar {
+      display: flex;
+      min-width: 0;
+      gap: 6px;
+      border-bottom: 1px solid #d0d5dd;
+      padding-bottom: 6px;
+    }
+
+    .program-tabs {
+      display: flex;
+      min-width: 0;
+      flex: 1 1 auto;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .program-tab-item {
+      display: flex;
+      flex: 0 0 auto;
+      overflow: hidden;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      background: #f8fafc;
+    }
+
+    .program-tab-item.is-active {
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+
+    .program-tab {
+      min-width: 74px;
+      height: 30px;
+      border: 0;
+      border-radius: 0;
+      padding: 0 9px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .program-tab[aria-selected="true"] {
+      color: #1d4ed8;
+    }
+
+    .program-tab-close,
+    .new-program-button {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      padding: 0;
+      color: #475467;
+      background: #ffffff;
+      font-size: 19px;
+      line-height: 1;
+    }
+
+    .program-tab-close {
+      width: 27px;
+      border: 0;
+      border-left: 1px solid #d0d5dd;
+      border-radius: 0;
+      color: #667085;
+      background: transparent;
+      font-size: 17px;
+    }
+
+    .program-tab-close:hover,
+    .new-program-button:hover {
+      color: #1d4ed8;
+      background: #eff6ff;
+    }
+
+    .program-tab:disabled,
+    .program-tab-close:disabled,
+    .new-program-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
     }
 
     .right-panel {
@@ -724,6 +811,7 @@
               <div class="help-item"><dt><code>turn(90)</code></dt><dd data-i18n="help.turn">Поворот на месте; положительный угол вправо.</dd></div>
               <div class="help-item"><dt><code>turn_one(left, 90)</code></dt><dd data-i18n="help.turnOne">Поворот вокруг левого или правого колеса.</dd></div>
               <div class="help-item"><dt><code>drop(1)</code></dt><dd data-i18n="help.drop">Оставить кубик с номером от 1 до 4.</dd></div>
+              <div class="help-item"><dt><code>// comment</code></dt><dd data-i18n="help.comment">Comment to the end of the line; it is not executed.</dd></div>
             </dl>
 
             <dl class="help-group">
@@ -749,6 +837,10 @@
             <button class="language-button" type="button" data-language="en">ENG</button>
           </div>
         </div>
+        <div class="program-tab-bar">
+          <div id="programTabs" class="program-tabs" role="tablist" aria-label="Program tabs" data-i18n-aria-label="aria.programTabs"></div>
+          <button id="newProgramButton" class="new-program-button" type="button" aria-label="New program" data-i18n-aria-label="aria.newProgram" data-i18n-title="tabs.newProgram">+</button>
+        </div>
         <textarea id="programInput" spellcheck="false">straight(100)
 turn(90)
 straight(50)
@@ -764,6 +856,7 @@ drop(1)</textarea>
   <script>
     const WORLD_MM = 1000;
     const PROGRAM_STORAGE_KEY = "wro2026JuniorPseudocode";
+    const PROGRAM_TABS_STORAGE_KEY = "wro2026JuniorPseudocodeTabs";
     const COLOR_SETTINGS_STORAGE_KEY = "wro2026JuniorColorSettings";
     const LANGUAGE_STORAGE_KEY = "wro2026JuniorLanguage";
     const START_X_MM = 340;
@@ -805,6 +898,8 @@ drop(1)</textarea>
     const turnAccelValue = document.getElementById("turnAccelValue");
     const assetError = document.getElementById("assetError");
     const programInput = document.getElementById("programInput");
+    const programTabs = document.getElementById("programTabs");
+    const newProgramButton = document.getElementById("newProgramButton");
     const runProgramButton = document.getElementById("runProgramButton");
     const resetProgramButton = document.getElementById("resetProgramButton");
     const programStatus = document.getElementById("programStatus");
@@ -862,8 +957,15 @@ drop(1)</textarea>
       index: 0,
       active: null
     };
+    let programs = [];
+    let activeProgramId = null;
     const translations = {
       ru: {
+        tabs: {
+          program: "Код {number}",
+          newProgram: "Новый код",
+          closeProgram: "Закрыть код {number}"
+        },
         meta: {
           title: "Симулятор поля WRO 2026 Junior"
         },
@@ -897,6 +999,8 @@ drop(1)</textarea>
           english: "English"
         },
         aria: {
+          programTabs: "Вкладки программ",
+          newProgram: "Новый код",
           simulationControls: "Управление симуляцией",
           dropArtefacts: "Сброс артефактов",
           testColors: "Тестовые цвета",
@@ -905,6 +1009,7 @@ drop(1)</textarea>
           language: "Язык интерфейса"
         },
         help: {
+          comment: "Комментарий до конца строки; он не выполняется.",
           summary: "Справочник псевдокода",
           movement: "Движение",
           startPoint: "Стартовая поза: X, Y в мм и угол в градусах.",
@@ -959,6 +1064,11 @@ drop(1)</textarea>
         }
       },
       en: {
+        tabs: {
+          program: "Code {number}",
+          newProgram: "New code",
+          closeProgram: "Close code {number}"
+        },
         meta: {
           title: "WRO 2026 Junior Field Simulator"
         },
@@ -992,6 +1102,8 @@ drop(1)</textarea>
           english: "English"
         },
         aria: {
+          programTabs: "Program tabs",
+          newProgram: "New code",
           simulationControls: "Simulation controls",
           dropArtefacts: "Drop artefacts",
           testColors: "Test colors",
@@ -1000,6 +1112,7 @@ drop(1)</textarea>
           language: "Interface language"
         },
         help: {
+          comment: "Comment to the end of the line; it is not executed.",
           summary: "Pseudocode reference",
           movement: "Motion",
           startPoint: "Start pose: X and Y in mm, heading in degrees.",
@@ -1090,6 +1203,9 @@ drop(1)</textarea>
       for (const element of document.querySelectorAll("[data-i18n-aria-label]")) {
         element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
       }
+      for (const element of document.querySelectorAll("[data-i18n-title]")) {
+        element.title = t(element.dataset.i18nTitle);
+      }
       for (const summary of document.querySelectorAll(".pseudocode-help summary")) {
         summary.title = t("help.summary");
       }
@@ -1156,23 +1272,155 @@ drop(1)</textarea>
       manualTurnSpeedRadS = 0;
     }
 
+    function createProgramId() {
+      return `program-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function activeProgram() {
+      return programs.find((program) => program.id === activeProgramId) || null;
+    }
+
+    function programSelectionLocked() {
+      return programState.running || programState.paused;
+    }
+
+    function renderProgramTabs() {
+      programTabs.innerHTML = "";
+      const locked = programSelectionLocked();
+
+      programs.forEach((program, index) => {
+        const isActive = program.id === activeProgramId;
+        const item = document.createElement("div");
+        item.className = "program-tab-item";
+        item.classList.toggle("is-active", isActive);
+
+        const tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = "program-tab";
+        tab.setAttribute("role", "tab");
+        tab.setAttribute("aria-selected", String(isActive));
+        tab.textContent = t("tabs.program", { number: index + 1 });
+        tab.disabled = locked;
+        tab.addEventListener("click", () => selectProgram(program.id));
+        item.append(tab);
+
+        if (programs.length > 1) {
+          const close = document.createElement("button");
+          close.type = "button";
+          close.className = "program-tab-close";
+          close.textContent = "×";
+          close.disabled = locked;
+          close.setAttribute("aria-label", t("tabs.closeProgram", { number: index + 1 }));
+          close.title = t("tabs.closeProgram", { number: index + 1 });
+          close.addEventListener("click", () => closeProgram(program.id));
+          item.append(close);
+        }
+
+        programTabs.append(item);
+      });
+
+      newProgramButton.disabled = locked;
+      newProgramButton.title = t("tabs.newProgram");
+    }
+
     function loadSavedProgram() {
       try {
-        const saved = localStorage.getItem(PROGRAM_STORAGE_KEY);
-        if (saved !== null) {
-          programInput.value = saved;
+        const savedTabs = localStorage.getItem(PROGRAM_TABS_STORAGE_KEY);
+        if (savedTabs) {
+          const stored = JSON.parse(savedTabs);
+          if (Array.isArray(stored.programs) && stored.programs.length > 0) {
+            programs = stored.programs
+              .filter((program) => typeof program?.code === "string")
+              .map((program) => ({
+                id: typeof program.id === "string" ? program.id : createProgramId(),
+                code: program.code
+              }));
+            activeProgramId = programs.some((program) => program.id === stored.activeProgramId)
+              ? stored.activeProgramId
+              : programs[0]?.id || null;
+          }
         }
+
+        if (programs.length === 0) {
+          const legacyProgram = localStorage.getItem(PROGRAM_STORAGE_KEY);
+          programs = [{
+            id: createProgramId(),
+            code: legacyProgram ?? programInput.value
+          }];
+          activeProgramId = programs[0].id;
+        }
+
+        programInput.value = activeProgram()?.code || "";
+        saveProgram();
+        renderProgramTabs();
       } catch (error) {
         setProgramStatus("status.codeAutosaveUnavailable", "error");
       }
     }
 
     function saveProgram() {
+      const current = activeProgram();
+      if (current) {
+        current.code = programInput.value;
+      }
+
       try {
-        localStorage.setItem(PROGRAM_STORAGE_KEY, programInput.value);
+        localStorage.setItem(PROGRAM_TABS_STORAGE_KEY, JSON.stringify({
+          activeProgramId,
+          programs
+        }));
       } catch (error) {
         setProgramStatus("status.codeAutosaveUnavailable", "error");
       }
+    }
+
+    function selectProgram(id) {
+      if (programSelectionLocked() || id === activeProgramId) return;
+
+      saveProgram();
+      const selected = programs.find((program) => program.id === id);
+      if (!selected) return;
+
+      activeProgramId = id;
+      programInput.value = selected.code;
+      renderProgramTabs();
+      resetFromProgram();
+    }
+
+    function createProgram() {
+      if (programSelectionLocked()) return;
+
+      saveProgram();
+      const program = {
+        id: createProgramId(),
+        code: normalizeProgramPrologue("")
+      };
+      programs.push(program);
+      activeProgramId = program.id;
+      programInput.value = program.code;
+      saveProgram();
+      renderProgramTabs();
+      resetFromProgram();
+    }
+
+    function closeProgram(id) {
+      if (programSelectionLocked() || programs.length < 2) return;
+
+      const closingIndex = programs.findIndex((program) => program.id === id);
+      if (closingIndex < 0) return;
+
+      saveProgram();
+      programs = programs.filter((program) => program.id !== id);
+
+      if (activeProgramId === id) {
+        const nextProgram = programs[Math.min(closingIndex, programs.length - 1)];
+        activeProgramId = nextProgram.id;
+        programInput.value = nextProgram.code;
+        resetFromProgram();
+      }
+
+      saveProgram();
+      renderProgramTabs();
     }
 
     function colorDefinitionByName(name) {
@@ -1321,8 +1569,12 @@ drop(1)</textarea>
       }
     }
 
+    function stripLineComment(line) {
+      return line.replace(/\/\/.*$/, "");
+    }
+
     function isColorMapLine(line) {
-      return colorMapLinePattern.test(line.trim());
+      return colorMapLinePattern.test(stripLineComment(line).trim());
     }
 
     function buildColorValues() {
@@ -1350,12 +1602,12 @@ drop(1)</textarea>
     }
 
     function findColorMapBlockEnd(lines, startIndex) {
-      if (!colorMapHeaderPattern.test(lines[startIndex]?.trim() || "")) {
+      if (!colorMapHeaderPattern.test(stripLineComment(lines[startIndex] || "").trim())) {
         return -1;
       }
 
       for (let index = startIndex + 1; index < lines.length; index += 1) {
-        if (/\]\s*$/.test(lines[index])) {
+        if (/\]\s*$/.test(stripLineComment(lines[index]))) {
           return index;
         }
       }
@@ -1370,7 +1622,7 @@ drop(1)</textarea>
 
       for (let index = 0; index < lines.length; index += 1) {
         const raw = lines[index];
-        const trimmed = raw.trim();
+        const trimmed = stripLineComment(raw).trim();
         const mapEnd = findColorMapBlockEnd(lines, index);
 
         if (mapEnd >= index) {
@@ -1383,7 +1635,7 @@ drop(1)</textarea>
         }
 
         if (startPointLinePattern.test(trimmed) && startPointLine === null) {
-          startPointLine = trimmed;
+          startPointLine = raw.trim();
           continue;
         }
 
@@ -1417,8 +1669,11 @@ drop(1)</textarea>
     }
 
     function parseStartPoint(source) {
-      const line = source.split(/\r?\n/).find((entry) => entry.trim().length > 0) || "";
-      return parseStartPointCommand(line.trim(), 1);
+      const line = source
+        .split(/\r?\n/)
+        .map((entry) => stripLineComment(entry).trim())
+        .find((entry) => entry.length > 0) || "";
+      return parseStartPointCommand(line, 1);
     }
 
     function ensureProgramPrologue() {
@@ -1919,7 +2174,7 @@ drop(1)</textarea>
           continue;
         }
 
-        const text = sourceLines[index];
+        const text = stripLineComment(sourceLines[index]);
         if (isColorMapLine(text)) {
           continue;
         }
@@ -2235,6 +2490,7 @@ drop(1)</textarea>
       programState.running = running;
       runProgramButton.textContent = t(running ? "ui.pause" : "ui.run");
       runProgramButton.classList.toggle("secondary-button", programState.paused);
+      renderProgramTabs();
     }
 
     function clearProgramExecution(status = "status.ready") {
@@ -2653,6 +2909,7 @@ drop(1)</textarea>
       }
     });
     resetProgramButton.addEventListener("click", resetFromProgram);
+    newProgramButton.addEventListener("click", createProgram);
 
     for (const button of dropButtons) {
       button.addEventListener("click", () => dropArtefact(button.dataset.dropId));
