@@ -131,8 +131,19 @@
 
     .right-panel .program-panel {
       height: calc(100vh - 32px);
+      min-height: 0;
       align-content: start;
-      grid-template-rows: auto auto minmax(560px, 1fr) auto auto;
+      grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    }
+
+    .right-panel {
+      overflow: hidden;
+    }
+
+    .right-panel textarea {
+      min-height: 0;
+      resize: none;
+      overflow: auto;
     }
 
     textarea {
@@ -400,6 +411,10 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .left-panel .position-panel {
+        grid-column: 1 / -1;
+      }
+
       .stage {
         grid-column: 1;
         grid-row: 1;
@@ -443,8 +458,13 @@
         min-height: 0;
       }
 
-      textarea {
+      .right-panel {
+        overflow: visible;
+      }
+
+      .right-panel textarea {
         min-height: 520px;
+        resize: vertical;
       }
 
       .pseudocode-help-body {
@@ -484,29 +504,8 @@
             <dd class="value">1000 x 1000 mm</dd>
           </div>
           <div class="row">
-            <dt class="label">Crop origin</dt>
-            <dd class="value">x 740, y 0 mm</dd>
-          </div>
-          <div class="row">
             <dt class="label">Robot size</dt>
             <dd class="value">250 x 250 mm</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section class="panel">
-        <dl class="meta">
-          <div class="row">
-            <dt class="label">X</dt>
-            <dd class="value" id="xValue">0 mm</dd>
-          </div>
-          <div class="row">
-            <dt class="label">Y</dt>
-            <dd class="value" id="yValue">0 mm</dd>
-          </div>
-          <div class="row">
-            <dt class="label">Heading</dt>
-            <dd class="value" id="headingValue">0 deg</dd>
           </div>
         </dl>
       </section>
@@ -581,6 +580,23 @@
         </div>
         <p id="assetError" class="error">Field image failed to load.</p>
       </section>
+
+      <section class="panel position-panel">
+        <dl class="meta">
+          <div class="row">
+            <dt class="label">X</dt>
+            <dd class="value" id="xValue">0 mm</dd>
+          </div>
+          <div class="row">
+            <dt class="label">Y</dt>
+            <dd class="value" id="yValue">0 mm</dd>
+          </div>
+          <div class="row">
+            <dt class="label">Heading</dt>
+            <dd class="value" id="headingValue">0 deg</dd>
+          </div>
+        </dl>
+      </section>
     </aside>
 
     <section class="stage" aria-label="Simulation field">
@@ -597,6 +613,7 @@
           <div class="pseudocode-help-body">
             <dl class="help-group">
               <dt class="help-group-title">Движение</dt>
+              <div class="help-item"><dt><code>startPoint(340, 820, 0)</code></dt><dd>Стартовая поза: X, Y в мм и угол в градусах.</dd></div>
               <div class="help-item"><dt><code>straight(100)</code></dt><dd>Вперед на мм; отрицательное значение едет назад.</dd></div>
               <div class="help-item"><dt><code>turn(90)</code></dt><dd>Поворот на месте; положительный угол вправо.</dd></div>
               <div class="help-item"><dt><code>turn_one(left, 90)</code></dt><dd>Поворот вокруг левого или правого колеса.</dd></div>
@@ -612,10 +629,11 @@
             </dl>
 
             <dl class="help-group help-group--wide">
-              <dt class="help-group-title">Цикл и значения</dt>
+              <dt class="help-group-title">Цикл и цвета</dt>
+              <div class="help-item"><dt><code>readColors()</code></dt><dd>Заполняет блок <code>colors</code> текущими цветами кубиков.</dd></div>
               <div class="help-item"><dt><code>for color in colors {}</code></dt><dd>Перебор: Yellow, Blue, Black, Green, Red.</dd></div>
               <div class="help-item"><dt><code>color</code>, <code>next</code>, <code>previous</code></dt><dd>Текущий, следующий и предыдущий цвет внутри цикла.</dd></div>
-              <div class="help-item"><dt><code>Yellow = 1</code></dt><dd>Присваивание значения 1..5 или <code>None</code>; также доступны <code>color</code>, <code>next</code>, <code>previous</code>.</dd></div>
+              <div class="help-item"><dt><code>Yellow = 1</code></dt><dd>Присваивание значения 1..5 или <code>None</code>; до <code>readColors()</code> все цвета равны <code>None</code>.</dd></div>
             </dl>
           </div>
         </details>
@@ -639,6 +657,11 @@ drop(1)</textarea>
     const START_X_MM = 340;
     const START_Y_MM = 820;
     const START_HEADING_RAD = 0;
+    const DEFAULT_START_POINT = Object.freeze({
+      xMm: START_X_MM,
+      yMm: START_Y_MM,
+      headingDeg: 0
+    });
     const ROBOT_SIZE_MM = 250;
     const HALF_ROBOT_MM = ROBOT_SIZE_MM / 2;
     const WHEEL_TRACK_MM = 163.5;
@@ -692,6 +715,9 @@ drop(1)</textarea>
       { name: "red", label: "Red" }
     ];
     const colorMapLinePattern = /^\[\s*Yellow\s*:/i;
+    const colorMapHeaderPattern = /^colors\s*=\s*$/i;
+    const readColorsLinePattern = /^readColors\s*\(\s*\)\s*$/i;
+    const startPointLinePattern = /^startPoint\s*\(/i;
 
     const artefacts = [
       { id: "1", localX: -62, localY: -62 },
@@ -879,7 +905,7 @@ drop(1)</textarea>
 
     function refreshColorsAfterManualChange() {
       applyManualArtefactColors();
-      updateProgramColorMapLine();
+      updateProgramColorMapBlock();
       updateDropButtons();
       saveColorSettings();
       draw();
@@ -893,7 +919,7 @@ drop(1)</textarea>
         syncColorSelectsFromArtefacts();
       }
 
-      updateProgramColorMapLine();
+      updateProgramColorMapBlock();
       updateDropButtons();
       saveColorSettings();
       draw();
@@ -915,43 +941,121 @@ drop(1)</textarea>
       return colorMapLinePattern.test(line.trim());
     }
 
-    function buildColorMapLine() {
+    function buildColorValues() {
       const artefactIdByColor = new Map(
         artefacts
           .filter((artefact) => artefact.name)
           .map((artefact) => [artefact.name, artefact.id])
       );
-      const entries = colorMapOrder.map((color) => {
-        const id = artefactIdByColor.get(color.name) || "None";
-        return `${color.label}: ${id}`;
+
+      return new Map(colorMapOrder.map((color) => [
+        color.name,
+        artefactIdByColor.get(color.name) || "None"
+      ]));
+    }
+
+    function buildColorMapBlock(colorValues = null) {
+      const lines = colorMapOrder.map((color, index) => {
+        const value = colorValues?.get(color.name) || "None";
+        const prefix = index === 0 ? "[" : "";
+        const suffix = index === colorMapOrder.length - 1 ? "]" : ",";
+        return `${prefix}${color.label}: ${value}${suffix}`;
       });
 
-      return `[${entries.join(", ")}]`;
+      return ["colors =", ...lines].join("\n");
     }
 
-    function updateProgramColorMapLine() {
-      const mapLine = buildColorMapLine();
-      const lines = programInput.value.split(/\r?\n/);
-
-      if (lines.length > 0 && isColorMapLine(lines[0])) {
-        lines[0] = mapLine;
-      } else {
-        lines.unshift(mapLine);
+    function findColorMapBlockEnd(lines, startIndex) {
+      if (!colorMapHeaderPattern.test(lines[startIndex]?.trim() || "") || !isColorMapLine(lines[startIndex + 1] || "")) {
+        return -1;
       }
 
-      programInput.value = lines.join("\n");
-      saveProgram();
+      for (let index = startIndex + 1; index < lines.length; index += 1) {
+        if (/\]\s*$/.test(lines[index])) {
+          return index;
+        }
+      }
+
+      return -1;
     }
 
-    function resetRobot({ stopProgram = true, randomizeColors = true } = {}) {
+    function normalizeProgramPrologue(source, colorValues = null) {
+      const lines = source.split(/\r?\n/);
+      const body = [];
+      let startPointLine = null;
+
+      for (let index = 0; index < lines.length; index += 1) {
+        const raw = lines[index];
+        const trimmed = raw.trim();
+        const mapEnd = findColorMapBlockEnd(lines, index);
+
+        if (mapEnd >= index) {
+          index = mapEnd;
+          continue;
+        }
+
+        if (isColorMapLine(trimmed) || readColorsLinePattern.test(trimmed)) {
+          continue;
+        }
+
+        if (startPointLinePattern.test(trimmed) && startPointLine === null) {
+          startPointLine = trimmed;
+          continue;
+        }
+
+        body.push(raw);
+      }
+
+      const cleanBody = body.join("\n").replace(/^(?:\s*\n)+/, "").trimEnd();
+      const startPoint = startPointLine || `startPoint(${DEFAULT_START_POINT.xMm}, ${DEFAULT_START_POINT.yMm}, ${DEFAULT_START_POINT.headingDeg})`;
+      const sections = [
+        startPoint,
+        buildColorMapBlock(colorValues),
+        "readColors()"
+      ];
+
+      if (cleanBody) {
+        sections.push(cleanBody);
+      }
+
+      return sections.join("\n\n");
+    }
+
+    function updateProgramColorMapBlock(revealColors = false) {
+      const source = normalizeProgramPrologue(
+        programInput.value,
+        revealColors ? buildColorValues() : null
+      );
+
+      programInput.value = source;
+      saveProgram();
+      return source;
+    }
+
+    function parseStartPoint(source) {
+      const line = source.split(/\r?\n/).find((entry) => entry.trim().length > 0) || "";
+      return parseStartPointCommand(line.trim(), 1);
+    }
+
+    function ensureProgramPrologue() {
+      return updateProgramColorMapBlock(false);
+    }
+
+    function resetRobot({ stopProgram = true, randomizeColors = true, startPoint = null } = {}) {
       if (stopProgram) {
         clearProgramExecution("Ready");
       }
       keys.clear();
       resetManualMotion();
-      robot.xMm = START_X_MM;
-      robot.yMm = START_Y_MM;
-      robot.headingRad = START_HEADING_RAD;
+      const configuredStartPoint = startPoint || parseStartPoint(ensureProgramPrologue());
+      const startPose = applyTopBorder(
+        configuredStartPoint.xMm,
+        configuredStartPoint.yMm,
+        configuredStartPoint.headingDeg * Math.PI / 180
+      );
+      robot.xMm = startPose.xMm;
+      robot.yMm = startPose.yMm;
+      robot.headingRad = startPose.headingRad;
       trail.length = 0;
       if (manualColorsToggle.checked) {
         applyManualArtefactColors();
@@ -959,7 +1063,7 @@ drop(1)</textarea>
         randomizeArtefactColors();
       }
       syncColorSelectsFromArtefacts();
-      updateProgramColorMapLine();
+      updateProgramColorMapBlock();
       for (const artefact of artefacts) {
         artefact.dropped = false;
         artefact.collisionActive = false;
@@ -1278,7 +1382,7 @@ drop(1)</textarea>
 
     function createParseState() {
       return {
-        assignedColorIds: new Map()
+        assignedColorIds: new Map(colorMapOrder.map((color) => [color.name, "None"]))
       };
     }
 
@@ -1298,6 +1402,12 @@ drop(1)</textarea>
     function applyCommandToParseState(command, parseState) {
       if (command.type === "assign" && command.colorName !== null) {
         parseState.assignedColorIds.set(command.colorName, command.value);
+      }
+
+      if (command.type === "read_colors") {
+        for (const [colorName, cubeId] of buildColorValues()) {
+          parseState.assignedColorIds.set(colorName, cubeId);
+        }
       }
     }
 
@@ -1415,15 +1525,31 @@ drop(1)</textarea>
     }
 
     function normalizeProgramLines(source) {
-      return source.split(/\r?\n/).flatMap((text, index) => {
-        return text
+      const sourceLines = source.split(/\r?\n/);
+      const normalized = [];
+
+      for (let index = 0; index < sourceLines.length; index += 1) {
+        const mapEnd = findColorMapBlockEnd(sourceLines, index);
+        if (mapEnd >= index) {
+          index = mapEnd;
+          continue;
+        }
+
+        const text = sourceLines[index];
+        if (isColorMapLine(text)) {
+          continue;
+        }
+
+        normalized.push(...text
           .replace(/}\s*(?=(?:elif|else)\b)/gi, "}\n")
           .split("\n")
           .map((part) => ({
             text: part,
             lineNumber: index + 1
-          }));
-      });
+          })));
+      }
+
+      return normalized;
     }
 
     function resolveAssignmentColorName(name, scope, lineNumber) {
@@ -1447,6 +1573,34 @@ drop(1)</textarea>
     }
 
     function parseCommandLine(raw, lineNumber, scope = {}) {
+      const startPointMatch = raw.match(/^startPoint\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)$/i);
+      if (startPointMatch) {
+        return {
+          type: "start_point",
+          xMm: Number(startPointMatch[1]),
+          yMm: Number(startPointMatch[2]),
+          headingDeg: Number(startPointMatch[3]),
+          line: lineNumber,
+          label: raw
+        };
+      }
+
+      if (/^startPoint\b/i.test(raw)) {
+        throw new Error(`Line ${lineNumber}: startPoint expects x, y, heading`);
+      }
+
+      if (/^readColors\s*\(\s*\)$/i.test(raw)) {
+        return {
+          type: "read_colors",
+          line: lineNumber,
+          label: raw
+        };
+      }
+
+      if (/^readColors\b/i.test(raw)) {
+        throw new Error(`Line ${lineNumber}: readColors expects no arguments`);
+      }
+
       const assignmentMatch = raw.match(/^([a-z_][a-z0-9_]*)\s*=\s*(1|2|3|4|5|none)$/i);
       if (assignmentMatch) {
         return {
@@ -1508,6 +1662,14 @@ drop(1)</textarea>
       }
 
       throw new Error(`Line ${lineNumber}: unknown command "${name}"`);
+    }
+
+    function parseStartPointCommand(raw, lineNumber) {
+      const command = parseCommandLine(raw, lineNumber);
+      if (command.type !== "start_point") {
+        throw new Error(`Line ${lineNumber}: startPoint must be the first command`);
+      }
+      return command;
     }
 
     function parseCommandBlock(lines, startIndex, needsClosingBrace, scope = {}, parseState = createParseState()) {
@@ -1650,7 +1812,22 @@ drop(1)</textarea>
 
     function parseProgram(source) {
       const lines = normalizeProgramLines(source);
+      const firstCommandLine = lines.find((line) => line.text.trim().length > 0);
+      if (!firstCommandLine) {
+        throw new Error("Line 1: startPoint must be the first command");
+      }
+      parseStartPointCommand(firstCommandLine.text.trim(), firstCommandLine.lineNumber);
       const { commands } = parseCommandBlock(lines, 0, false, {}, createParseState());
+
+      if (commands[0]?.type !== "start_point") {
+        throw new Error(`Line ${firstCommandLine.lineNumber}: startPoint must be the first command`);
+      }
+
+      const laterStartPoint = commands.find((command, index) => command.type === "start_point" && index > 0);
+      if (laterStartPoint) {
+        throw new Error(`Line ${laterStartPoint.line}: startPoint is allowed only at the beginning`);
+      }
+
       return commands;
     }
 
@@ -1701,11 +1878,20 @@ drop(1)</textarea>
       }
     }
 
-    function startProgram() {
-      resetRobot({ stopProgram: false });
+    function resetFromProgram() {
+      try {
+        resetRobot();
+      } catch (error) {
+        clearProgramExecution(error.message);
+        setProgramStatus(error.message, "error");
+      }
+    }
 
+    function startProgram() {
       let commands;
       try {
+        const startPoint = parseStartPoint(ensureProgramPrologue());
+        resetRobot({ stopProgram: false, startPoint });
         commands = parseProgram(programInput.value);
       } catch (error) {
         clearProgramExecution(error.message);
@@ -1799,6 +1985,17 @@ drop(1)</textarea>
 
       if (command.type === "drop") {
         dropArtefact(command.value);
+        completeProgramCommand();
+        return;
+      }
+
+      if (command.type === "start_point") {
+        completeProgramCommand();
+        return;
+      }
+
+      if (command.type === "read_colors") {
+        updateProgramColorMapBlock(true);
         completeProgramCommand();
         return;
       }
@@ -2031,7 +2228,7 @@ drop(1)</textarea>
       }
 
       if (event.key.toLowerCase() === "r") {
-        resetRobot();
+        resetFromProgram();
       }
 
       if (["1", "2", "3", "4"].includes(event.key) && !programState.running) {
@@ -2053,7 +2250,7 @@ drop(1)</textarea>
       keys.clear();
     });
 
-    resetButton.addEventListener("click", resetRobot);
+    resetButton.addEventListener("click", resetFromProgram);
     runProgramButton.addEventListener("click", () => {
       if (programState.running) {
         pauseProgramExecution();
@@ -2063,7 +2260,7 @@ drop(1)</textarea>
         startProgram();
       }
     });
-    resetProgramButton.addEventListener("click", resetRobot);
+    resetProgramButton.addEventListener("click", resetFromProgram);
 
     for (const button of dropButtons) {
       button.addEventListener("click", () => dropArtefact(button.dataset.dropId));
@@ -2122,7 +2319,7 @@ drop(1)</textarea>
     setupColorSelects();
     loadSavedProgram();
     loadColorSettings();
-    resetRobot();
+    resetFromProgram();
     requestAnimationFrame(tick);
   </script>
 </body>
