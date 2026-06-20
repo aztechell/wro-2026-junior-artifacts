@@ -770,11 +770,11 @@ drop(1)</textarea>
       { name: "yellow", color: "#facc15", textColor: "#111827" }
     ];
     const colorMapOrder = [
-      { name: "yellow", labelKey: "color.yellow" },
-      { name: "blue", labelKey: "color.blue" },
-      { name: "black", labelKey: "color.black" },
-      { name: "green", labelKey: "color.green" },
-      { name: "red", labelKey: "color.red" }
+      { name: "yellow", codeName: "Yellow", labelKey: "color.yellow" },
+      { name: "blue", codeName: "Blue", labelKey: "color.blue" },
+      { name: "black", codeName: "Black", labelKey: "color.black" },
+      { name: "green", codeName: "Green", labelKey: "color.green" },
+      { name: "red", codeName: "Red", labelKey: "color.red" }
     ];
     const colorMapLinePattern = /^\[\s*Yellow\s*:/i;
     const colorMapHeaderPattern = /^colors\s*=\s*$/i;
@@ -1289,14 +1289,14 @@ drop(1)</textarea>
         const value = colorValues?.get(color.name) || "None";
         const prefix = index === 0 ? "[" : "";
         const suffix = index === colorMapOrder.length - 1 ? "]" : ",";
-        return `${prefix}${color.label}: ${value}${suffix}`;
+        return `${prefix}${color.codeName}: ${value}${suffix}`;
       });
 
       return ["colors =", ...lines].join("\n");
     }
 
     function findColorMapBlockEnd(lines, startIndex) {
-      if (!colorMapHeaderPattern.test(lines[startIndex]?.trim() || "") || !isColorMapLine(lines[startIndex + 1] || "")) {
+      if (!colorMapHeaderPattern.test(lines[startIndex]?.trim() || "")) {
         return -1;
       }
 
@@ -1373,7 +1373,7 @@ drop(1)</textarea>
 
     function resetRobot({ stopProgram = true, randomizeColors = true, startPoint = null } = {}) {
       if (stopProgram) {
-        clearProgramExecution("Ready");
+        clearProgramExecution("status.ready");
       }
       keys.clear();
       resetManualMotion();
