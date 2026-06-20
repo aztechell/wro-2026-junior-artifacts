@@ -137,7 +137,7 @@
       height: calc(100vh - 32px);
       min-height: 0;
       align-content: start;
-      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      grid-template-rows: auto minmax(0, 1fr) auto;
     }
 
     .program-header {
@@ -149,6 +149,14 @@
 
     .program-header h1 {
       margin: 0;
+    }
+
+    .program-title {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
     }
 
     .language-switch {
@@ -264,26 +272,66 @@
     }
 
     .pseudocode-help {
-      border: 0;
-      border-bottom: 1px solid #e4e7ec;
+      position: static;
       color: var(--ink);
       font-size: 13px;
       line-height: 1.35;
-      padding-bottom: 12px;
     }
 
     .pseudocode-help summary {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
       cursor: pointer;
-      color: var(--ink);
+      color: #ffffff;
+      background: #172b4d;
+      font-size: 0;
       font-weight: 700;
+      line-height: 1;
+      list-style: none;
       user-select: none;
     }
 
+    .pseudocode-help summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .pseudocode-help summary::after {
+      content: "?";
+      font-size: 18px;
+    }
+
+    .pseudocode-help summary:focus-visible {
+      outline: 3px solid #93c5fd;
+      outline-offset: 2px;
+    }
+
     .pseudocode-help-body {
+      position: absolute;
+      z-index: 10;
+      top: calc(100% + 12px);
+      left: 0;
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px 16px;
-      padding-top: 10px;
+      width: min(440px, calc(100vw - 48px));
+      max-height: min(560px, calc(100vh - 150px));
+      grid-template-columns: 1fr;
+      gap: 14px;
+      overflow-y: auto;
+      border: 1px solid #a0a7b2;
+      border-radius: 8px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 12px 28px rgba(16, 24, 40, 0.2);
+    }
+
+    .pseudocode-help-body h2 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 17px;
+      line-height: 1.2;
     }
 
     .help-group {
@@ -663,15 +711,12 @@
     <aside class="side right-panel" aria-label="Pseudocode editor" data-i18n-aria-label="aria.pseudocodeEditor">
       <section class="panel program-panel">
         <div class="program-header">
-          <h1 data-i18n="ui.pseudocode">Pseudocode</h1>
-          <div class="language-switch" role="group" aria-label="Language" data-i18n-aria-label="aria.language">
-            <button class="language-button" type="button" data-language="ru">RU</button>
-            <button class="language-button" type="button" data-language="en">ENG</button>
-          </div>
-        </div>
-        <details class="pseudocode-help">
+          <div class="program-title">
+            <h1 data-i18n="ui.pseudocode">Pseudocode</h1>
+            <details class="pseudocode-help">
           <summary data-i18n="help.summary">Справочник псевдокода</summary>
           <div class="pseudocode-help-body">
+            <h2 data-i18n="help.summary">Pseudocode reference</h2>
             <dl class="help-group">
               <dt class="help-group-title" data-i18n="help.movement">Движение</dt>
               <div class="help-item"><dt><code>startPoint(340, 820, 0)</code></dt><dd data-i18n="help.startPoint">Стартовая поза: X, Y в мм и угол в градусах.</dd></div>
@@ -698,6 +743,12 @@
             </dl>
           </div>
         </details>
+          </div>
+          <div class="language-switch" role="group" aria-label="Language" data-i18n-aria-label="aria.language">
+            <button class="language-button" type="button" data-language="ru">RU</button>
+            <button class="language-button" type="button" data-language="en">ENG</button>
+          </div>
+        </div>
         <textarea id="programInput" spellcheck="false">straight(100)
 turn(90)
 straight(50)
@@ -1038,6 +1089,9 @@ drop(1)</textarea>
       }
       for (const element of document.querySelectorAll("[data-i18n-aria-label]")) {
         element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+      }
+      for (const summary of document.querySelectorAll(".pseudocode-help summary")) {
+        summary.title = t("help.summary");
       }
       for (const button of languageButtons) {
         const isActive = button.dataset.language === activeLanguage;
