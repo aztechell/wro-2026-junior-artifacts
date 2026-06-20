@@ -2137,6 +2137,11 @@ for color in colors {
       };
     }
 
+    function keepArtefactInsideTopBorder(artefact) {
+      const minY = Math.min(...artefactCorners(artefact).map((corner) => corner.y));
+      artefact.yMm += Math.max(0, -minY);
+    }
+
     function updateDroppedArtefactCollisionState(xMm, yMm, headingRad) {
       for (const artefact of artefacts) {
         if (!artefact.dropped || artefact.collisionActive) continue;
@@ -2157,6 +2162,7 @@ for color in colors {
 
         artefact.xMm += push.x;
         artefact.yMm += push.y;
+        keepArtefactInsideTopBorder(artefact);
       }
     }
 
