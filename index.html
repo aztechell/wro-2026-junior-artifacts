@@ -218,6 +218,10 @@
       background: #eff6ff;
     }
 
+    .program-tab-item.is-readonly {
+      background: #f3f4f6;
+    }
+
     .program-tab {
       min-width: 74px;
       height: 30px;
@@ -233,6 +237,10 @@
 
     .program-tab[aria-selected="true"] {
       color: #1d4ed8;
+    }
+
+    .program-tab-item.is-readonly .program-tab {
+      color: #475467;
     }
 
     .program-tab-close,
@@ -304,6 +312,11 @@
     textarea:focus {
       background: #0f172a;
       border-color: #2563eb;
+    }
+
+    textarea:read-only {
+      cursor: default;
+      background: #1f2937;
     }
 
     .program-buttons {
@@ -926,6 +939,70 @@ drop(1)</textarea>
     const colorMapHeaderPattern = /^colors\s*=\s*$/i;
     const readColorsLinePattern = /^readColors\s*\(\s*\)\s*$/i;
     const startPointLinePattern = /^startPoint\s*\(/i;
+    const BUILT_IN_PROGRAMS = Object.freeze([
+      Object.freeze({
+        id: "solution-1",
+        readonly: true,
+        labelKey: "tabs.solution1",
+        code: `startPoint(340, 820, 0)
+
+colors =
+[Yellow: None,
+Blue: None,
+Black: None,
+Green: None,
+Red: None]
+readColors()
+
+// самый простой алгоритм
+
+straight(800)
+straight(-150)
+turn(90)
+straight(390)
+
+for color in colors {
+  if color == 1 {
+    straight(130)
+    turn(-90)
+    straight(55)
+    drop(1)
+    straight(-130)
+    straight(130)
+    straight(-55)
+    turn(90)
+    straight(-130)
+
+  } else if color == 2 {
+    turn(-90)
+    straight(140)
+    drop(2)
+    straight(-140)
+    turn(90)
+
+  } else if color == 3 {
+    straight(130)
+    turn(90)
+    straight(-55)
+    drop(3)
+    straight(100)
+    straight(-100)
+    straight(55)
+    turn(-90)
+    straight(-130)
+
+  } else if color == 4 {
+    turn(90)
+    straight(-140)
+    drop(4)
+    straight(140)
+    turn(-90)
+  }
+
+  straight(-132)
+}`
+      })
+    ]);
 
     const artefacts = [
       { id: "1", localX: -62, localY: -62 },
@@ -963,8 +1040,10 @@ drop(1)</textarea>
       ru: {
         tabs: {
           program: "Код {number}",
+          solution1: "Решение 1",
           newProgram: "Новый код",
-          closeProgram: "Закрыть код {number}"
+          closeProgram: "Закрыть код {number}",
+          readOnlySolution: "Готовое решение: изменение отключено"
         },
         meta: {
           title: "Симулятор поля WRO 2026 Junior"
@@ -1066,8 +1145,10 @@ drop(1)</textarea>
       en: {
         tabs: {
           program: "Code {number}",
+          solution1: "Solution 1",
           newProgram: "New code",
-          closeProgram: "Close code {number}"
+          closeProgram: "Close code {number}",
+          readOnlySolution: "Built-in solution: editing is disabled"
         },
         meta: {
           title: "WRO 2026 Junior Field Simulator"
@@ -1280,6 +1361,14 @@ drop(1)</textarea>
       return programs.find((program) => program.id === activeProgramId) || null;
     }
 
+    function addBuiltInPrograms() {
+      for (const builtIn of BUILT_IN_PROGRAMS) {
+        if (!programs.some((program) => program.id === builtIn.id)) {
+          programs.push({ ...builtIn });
+        }
+      }
+    }
+
     function programSelectionLocked() {
       return programState.running || programState.paused;
     }
@@ -1287,31 +1376,44 @@ drop(1)</textarea>
     function renderProgramTabs() {
       programTabs.innerHTML = "";
       const locked = programSelectionLocked();
+      const current = activeProgram();
+      programInput.readOnly = Boolean(current?.readonly);
+      programInput.setAttribute("aria-readonly", String(Boolean(current?.readonly)));
 
       programs.forEach((program, index) => {
         const isActive = program.id === activeProgramId;
+        const editableNumber = programs
+          .slice(0, index)
+          .filter((item) => !item.readonly).length + 1;
         const item = document.createElement("div");
         item.className = "program-tab-item";
         item.classList.toggle("is-active", isActive);
+        item.classList.toggle("is-readonly", Boolean(program.readonly));
 
         const tab = document.createElement("button");
         tab.type = "button";
         tab.className = "program-tab";
         tab.setAttribute("role", "tab");
         tab.setAttribute("aria-selected", String(isActive));
-        tab.textContent = t("tabs.program", { number: index + 1 });
+        tab.textContent = program.labelKey
+          ? t(program.labelKey)
+          : t("tabs.program", { number: editableNumber });
+        if (program.readonly) {
+          tab.title = t("tabs.readOnlySolution");
+          tab.setAttribute("aria-label", `${tab.textContent}: ${t("tabs.readOnlySolution")}`);
+        }
         tab.disabled = locked;
         tab.addEventListener("click", () => selectProgram(program.id));
         item.append(tab);
 
-        if (programs.length > 1) {
+        if (!program.readonly) {
           const close = document.createElement("button");
           close.type = "button";
           close.className = "program-tab-close";
           close.textContent = "×";
           close.disabled = locked;
-          close.setAttribute("aria-label", t("tabs.closeProgram", { number: index + 1 }));
-          close.title = t("tabs.closeProgram", { number: index + 1 });
+          close.setAttribute("aria-label", t("tabs.closeProgram", { number: editableNumber }));
+          close.title = t("tabs.closeProgram", { number: editableNumber });
           close.addEventListener("click", () => closeProgram(program.id));
           item.append(close);
         }
@@ -1326,30 +1428,36 @@ drop(1)</textarea>
     function loadSavedProgram() {
       try {
         const savedTabs = localStorage.getItem(PROGRAM_TABS_STORAGE_KEY);
-        if (savedTabs) {
+        let storedActiveProgramId = null;
+        let hasTabStore = false;
+
+        if (savedTabs !== null) {
           const stored = JSON.parse(savedTabs);
-          if (Array.isArray(stored.programs) && stored.programs.length > 0) {
+          if (Array.isArray(stored.programs)) {
+            hasTabStore = true;
             programs = stored.programs
-              .filter((program) => typeof program?.code === "string")
+              .filter((program) => typeof program?.code === "string"
+                && !BUILT_IN_PROGRAMS.some((builtIn) => builtIn.id === program.id))
               .map((program) => ({
                 id: typeof program.id === "string" ? program.id : createProgramId(),
                 code: program.code
               }));
-            activeProgramId = programs.some((program) => program.id === stored.activeProgramId)
-              ? stored.activeProgramId
-              : programs[0]?.id || null;
+            storedActiveProgramId = stored.activeProgramId;
           }
         }
 
-        if (programs.length === 0) {
+        if (!hasTabStore) {
           const legacyProgram = localStorage.getItem(PROGRAM_STORAGE_KEY);
           programs = [{
             id: createProgramId(),
             code: legacyProgram ?? programInput.value
           }];
-          activeProgramId = programs[0].id;
         }
 
+        addBuiltInPrograms();
+        activeProgramId = programs.some((program) => program.id === storedActiveProgramId)
+          ? storedActiveProgramId
+          : programs.find((program) => !program.readonly)?.id || programs[0]?.id || null;
         programInput.value = activeProgram()?.code || "";
         saveProgram();
         renderProgramTabs();
@@ -1360,14 +1468,16 @@ drop(1)</textarea>
 
     function saveProgram() {
       const current = activeProgram();
-      if (current) {
+      if (current && !current.readonly) {
         current.code = programInput.value;
       }
 
       try {
         localStorage.setItem(PROGRAM_TABS_STORAGE_KEY, JSON.stringify({
           activeProgramId,
-          programs
+          programs: programs
+            .filter((program) => !program.readonly)
+            .map(({ id, code }) => ({ id, code }))
         }));
       } catch (error) {
         setProgramStatus("status.codeAutosaveUnavailable", "error");
@@ -1383,6 +1493,7 @@ drop(1)</textarea>
 
       activeProgramId = id;
       programInput.value = selected.code;
+      saveProgram();
       renderProgramTabs();
       resetFromProgram();
     }
@@ -1404,10 +1515,10 @@ drop(1)</textarea>
     }
 
     function closeProgram(id) {
-      if (programSelectionLocked() || programs.length < 2) return;
+      if (programSelectionLocked()) return;
 
       const closingIndex = programs.findIndex((program) => program.id === id);
-      if (closingIndex < 0) return;
+      if (closingIndex < 0 || programs[closingIndex].readonly) return;
 
       saveProgram();
       programs = programs.filter((program) => program.id !== id);
@@ -1658,6 +1769,10 @@ drop(1)</textarea>
     }
 
     function updateProgramColorMapBlock(revealColors = false) {
+      if (activeProgram()?.readonly) {
+        return programInput.value;
+      }
+
       const source = normalizeProgramPrologue(
         programInput.value,
         revealColors ? buildColorValues() : null
