@@ -1001,6 +1001,162 @@ for color in colors {
 
   straight(-132)
 }`
+      }),
+      Object.freeze({
+        id: "solution-2",
+        readonly: true,
+        labelKey: "tabs.solution2",
+        code: `startPoint(340, 820, 0)
+
+colors =
+[Yellow: None,
+Blue: None,
+Black: None,
+Green: None,
+Red: None]
+readColors()
+
+// может ставить одновременно два кубика
+
+straight(800)
+straight(-150)
+turn(90)
+straight(390)
+
+for color in colors {
+  if color == 1 {
+    straight(130)
+    turn(-90)
+    straight(55)
+    drop(1)
+    straight(-130)
+    straight(130)
+    straight(-55)
+    turn(90)
+    straight(-130)
+
+  } else if color == 2 {
+    turn(-90)
+    straight(140)
+    drop(2)
+    if next == 1 {
+      drop(1)
+      next = 5
+    }
+    straight(-140)
+    turn(90)
+
+  } else if color == 3 {
+    straight(130)
+    turn(90)
+    straight(-55)
+    drop(3)
+    straight(100)
+    straight(-100)
+    straight(55)
+    turn(-90)
+    straight(-130)
+
+  } else if color == 4 {
+    turn(90)
+    straight(-140)
+    drop(4)
+    if next == 3 {
+      drop(3)
+      next = 5
+    }
+    straight(140)
+    turn(-90)
+  }
+
+  straight(-132)
+}`
+      }),
+      Object.freeze({
+        id: "solution-3",
+        readonly: true,
+        labelKey: "tabs.solution3",
+        code: `startPoint(340, 820, 0)
+
+colors =
+[Yellow: None,
+Blue: None,
+Black: None,
+Green: None,
+Red: None]
+readColors()
+
+// может ставить одновременно два кубика и ставит кубики оптимальным способом
+
+straight(800)
+straight(-150)
+turn(90)
+straight(390)
+
+for color in colors {
+  if color == 1 {
+    straight(130)
+    turn(-90)
+
+    if previous == None {
+      straight(140)
+      drop(1)
+      straight(-140)
+
+    } else {
+      straight(55)
+      drop(1)
+      straight(-130)
+      straight(130)
+      straight(-55)
+    }
+    turn(90)
+    straight(-130)
+
+  } else if color == 2 {
+    turn(-90)
+    straight(140)
+    drop(2)
+    if next == 1 {
+      drop(1)
+      next = 5
+    }
+    straight(-140)
+    turn(90)
+
+  } else if color == 3 {
+    straight(130)
+    turn(90)
+
+    if previous == None {
+      straight(-140)
+      drop(3)
+      straight(140)
+
+    } else {
+      straight(-55)
+      drop(3)
+      straight(130)
+      straight(-130)
+      straight(55)
+    }
+    turn(-90)
+    straight(-130)
+
+  } else if color == 4 {
+    turn(90)
+    straight(-140)
+    drop(4)
+    if next == 3 {
+      drop(3)
+      next = 5
+    }
+    straight(140)
+    turn(-90)
+  }
+
+  straight(-132)
+}`
       })
     ]);
 
@@ -1041,6 +1197,8 @@ for color in colors {
         tabs: {
           program: "Код {number}",
           solution1: "Решение 1",
+          solution2: "Решение 2",
+          solution3: "Решение 3",
           newProgram: "Новый код",
           closeProgram: "Закрыть код {number}",
           readOnlySolution: "Готовое решение: изменение отключено"
@@ -1146,6 +1304,8 @@ for color in colors {
         tabs: {
           program: "Code {number}",
           solution1: "Solution 1",
+          solution2: "Solution 2",
+          solution3: "Solution 3",
           newProgram: "New code",
           closeProgram: "Close code {number}",
           readOnlySolution: "Built-in solution: editing is disabled"
