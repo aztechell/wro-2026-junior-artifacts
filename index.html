@@ -72,6 +72,10 @@
       gap: 12px;
     }
 
+    .left-panel {
+      height: calc(100vh - 32px);
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -133,7 +137,46 @@
       height: calc(100vh - 32px);
       min-height: 0;
       align-content: start;
-      grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+    }
+
+    .program-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .program-header h1 {
+      margin: 0;
+    }
+
+    .language-switch {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      width: 86px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .language-button {
+      height: 30px;
+      border: 0;
+      border-radius: 0;
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .language-button + .language-button {
+      border-left: 1px solid var(--line);
+    }
+
+    .language-button.is-active {
+      background: #eff6ff;
+      color: #1d4ed8;
     }
 
     .right-panel {
@@ -213,6 +256,11 @@
       color: #067647;
       background: #ecfdf3;
       border-color: #abefc6;
+    }
+
+    .status-panel {
+      flex: 0 0 auto;
+      margin-top: auto;
     }
 
     .pseudocode-help {
@@ -408,10 +456,15 @@
         grid-column: 1;
         grid-row: 2;
         display: grid;
+        height: auto;
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .left-panel .position-panel {
+        grid-column: 1 / -1;
+      }
+
+      .left-panel .status-panel {
         grid-column: 1 / -1;
       }
 
@@ -450,6 +503,7 @@
       }
 
       .left-panel {
+        height: auto;
         grid-template-columns: 1fr;
       }
 
@@ -495,90 +549,90 @@
 </head>
 <body>
   <main class="app">
-    <aside class="side left-panel" aria-label="Simulation controls">
+    <aside class="side left-panel" aria-label="Simulation controls" data-i18n-aria-label="aria.simulationControls">
       <section class="panel">
         <h1>WRO 2026 Junior</h1>
         <dl class="meta">
           <div class="row">
-            <dt class="label">Field crop</dt>
+            <dt class="label" data-i18n="ui.fieldCrop">Field crop</dt>
             <dd class="value">1000 x 1000 mm</dd>
           </div>
           <div class="row">
-            <dt class="label">Robot size</dt>
+            <dt class="label" data-i18n="ui.robotSize">Robot size</dt>
             <dd class="value">250 x 250 mm</dd>
           </div>
         </dl>
       </section>
 
       <section class="panel controls">
-        <button id="resetButton" type="button">Reset</button>
-        <div class="drop-grid" aria-label="Drop artefacts">
+        <button id="resetButton" type="button" data-i18n="ui.reset">Reset</button>
+        <div class="drop-grid" aria-label="Drop artefacts" data-i18n-aria-label="aria.dropArtefacts">
           <button class="drop-button" type="button" data-drop-id="1">1</button>
           <button class="drop-button" type="button" data-drop-id="2">2</button>
           <button class="drop-button" type="button" data-drop-id="3">3</button>
           <button class="drop-button" type="button" data-drop-id="4">4</button>
         </div>
-        <div class="color-controls" aria-label="Test colors">
+        <div class="color-controls" aria-label="Test colors" data-i18n-aria-label="aria.testColors">
           <label class="toggle-row">
-            <span>Manual colors</span>
+            <span data-i18n="ui.manualColors">Manual colors</span>
             <input id="manualColorsToggle" type="checkbox">
           </label>
           <div class="color-select-grid">
             <label class="color-select">
-              <span>Cube 1</span>
+              <span data-i18n="ui.cube1">Cube 1</span>
               <select data-color-select="1"></select>
             </label>
             <label class="color-select">
-              <span>Cube 2</span>
+              <span data-i18n="ui.cube2">Cube 2</span>
               <select data-color-select="2"></select>
             </label>
             <label class="color-select">
-              <span>Cube 3</span>
+              <span data-i18n="ui.cube3">Cube 3</span>
               <select data-color-select="3"></select>
             </label>
             <label class="color-select">
-              <span>Cube 4</span>
+              <span data-i18n="ui.cube4">Cube 4</span>
               <select data-color-select="4"></select>
             </label>
           </div>
         </div>
         <label class="toggle-row">
-          <span>Trail</span>
+          <span data-i18n="ui.trail">Trail</span>
           <input id="trailToggle" type="checkbox" checked>
         </label>
         <label class="toggle-row">
-          <span>Keyboard control</span>
+          <span data-i18n="ui.keyboardControl">Keyboard control</span>
           <input id="keyboardToggle" type="checkbox">
         </label>
         <div>
           <div class="range-head">
-            <span>Speed</span>
+            <span data-i18n="ui.speed">Speed</span>
             <span id="speedValue">500 mm/s</span>
           </div>
           <input id="speedInput" type="range" min="80" max="800" step="10" value="500">
         </div>
         <div>
           <div class="range-head">
-            <span>Accel</span>
+            <span data-i18n="ui.accel">Accel</span>
             <span id="accelValue">1400 mm/s2</span>
           </div>
           <input id="accelInput" type="range" min="200" max="3000" step="100" value="1400">
         </div>
         <div>
           <div class="range-head">
-            <span>Turn</span>
+            <span data-i18n="ui.turn">Turn</span>
             <span id="turnSpeedValue">240 deg/s</span>
           </div>
           <input id="turnSpeedInput" type="range" min="60" max="540" step="10" value="240">
         </div>
         <div>
           <div class="range-head">
-            <span>Turn accel</span>
+            <span data-i18n="ui.turnAccel">Turn accel</span>
             <span id="turnAccelValue">720 deg/s2</span>
           </div>
           <input id="turnAccelInput" type="range" min="120" max="1800" step="60" value="720">
         </div>
-        <p id="assetError" class="error">Field image failed to load.</p>
+        <p id="assetError" class="error" data-i18n="status.fieldImageLoadFailed">Field image failed to load.</p>
       </section>
 
       <section class="panel position-panel">
@@ -592,48 +646,55 @@
             <dd class="value" id="yValue">0 mm</dd>
           </div>
           <div class="row">
-            <dt class="label">Heading</dt>
+            <dt class="label" data-i18n="ui.heading">Heading</dt>
             <dd class="value" id="headingValue">0 deg</dd>
           </div>
         </dl>
       </section>
+      <div id="programStatus" class="program-status status-panel" data-i18n="status.ready">Ready</div>
     </aside>
 
-    <section class="stage" aria-label="Simulation field">
+    <section class="stage" aria-label="Simulation field" data-i18n-aria-label="aria.simulationField">
       <div class="canvas-shell">
         <canvas id="field" width="1000" height="1000"></canvas>
       </div>
     </section>
 
-    <aside class="side right-panel" aria-label="Pseudocode editor">
+    <aside class="side right-panel" aria-label="Pseudocode editor" data-i18n-aria-label="aria.pseudocodeEditor">
       <section class="panel program-panel">
-        <h1>Pseudocode</h1>
-        <details class="pseudocode-help" open>
-          <summary>Справочник псевдокода</summary>
+        <div class="program-header">
+          <h1 data-i18n="ui.pseudocode">Pseudocode</h1>
+          <div class="language-switch" role="group" aria-label="Language" data-i18n-aria-label="aria.language">
+            <button class="language-button" type="button" data-language="ru">RU</button>
+            <button class="language-button" type="button" data-language="en">ENG</button>
+          </div>
+        </div>
+        <details class="pseudocode-help">
+          <summary data-i18n="help.summary">Справочник псевдокода</summary>
           <div class="pseudocode-help-body">
             <dl class="help-group">
-              <dt class="help-group-title">Движение</dt>
-              <div class="help-item"><dt><code>startPoint(340, 820, 0)</code></dt><dd>Стартовая поза: X, Y в мм и угол в градусах.</dd></div>
-              <div class="help-item"><dt><code>straight(100)</code></dt><dd>Вперед на мм; отрицательное значение едет назад.</dd></div>
-              <div class="help-item"><dt><code>turn(90)</code></dt><dd>Поворот на месте; положительный угол вправо.</dd></div>
-              <div class="help-item"><dt><code>turn_one(left, 90)</code></dt><dd>Поворот вокруг левого или правого колеса.</dd></div>
-              <div class="help-item"><dt><code>drop(1)</code></dt><dd>Оставить кубик с номером от 1 до 4.</dd></div>
+              <dt class="help-group-title" data-i18n="help.movement">Движение</dt>
+              <div class="help-item"><dt><code>startPoint(340, 820, 0)</code></dt><dd data-i18n="help.startPoint">Стартовая поза: X, Y в мм и угол в градусах.</dd></div>
+              <div class="help-item"><dt><code>straight(100)</code></dt><dd data-i18n="help.straight">Вперед на мм; отрицательное значение едет назад.</dd></div>
+              <div class="help-item"><dt><code>turn(90)</code></dt><dd data-i18n="help.turn">Поворот на месте; положительный угол вправо.</dd></div>
+              <div class="help-item"><dt><code>turn_one(left, 90)</code></dt><dd data-i18n="help.turnOne">Поворот вокруг левого или правого колеса.</dd></div>
+              <div class="help-item"><dt><code>drop(1)</code></dt><dd data-i18n="help.drop">Оставить кубик с номером от 1 до 4.</dd></div>
             </dl>
 
             <dl class="help-group">
-              <dt class="help-group-title">Условия</dt>
-              <div class="help-item"><dt><code>if Yellow == 1 {}</code></dt><dd>Сравнение цвета с номером кубика или <code>None</code>.</dd></div>
-              <div class="help-item"><dt><code>elif color == 2 {}</code></dt><dd>Следующая ветка условия; также работает <code>else if</code>.</dd></div>
-              <div class="help-item"><dt><code>and</code> / <code>or</code></dt><dd>Объединяют проверки: <code>color == 2 and next == 1</code>.</dd></div>
-              <div class="help-item"><dt><code>else {}</code></dt><dd>Ветка, если предыдущие условия не подошли.</dd></div>
+              <dt class="help-group-title" data-i18n="help.conditions">Условия</dt>
+              <div class="help-item"><dt><code>if Yellow == 1 {}</code></dt><dd data-i18n="help.if">Сравнение цвета с номером кубика или None.</dd></div>
+              <div class="help-item"><dt><code>elif color == 2 {}</code></dt><dd data-i18n="help.elif">Следующая ветка условия; также работает else if.</dd></div>
+              <div class="help-item"><dt><code>and</code> / <code>or</code></dt><dd data-i18n="help.logic">Объединяют проверки: color == 2 and next == 1.</dd></div>
+              <div class="help-item"><dt><code>else {}</code></dt><dd data-i18n="help.else">Ветка, если предыдущие условия не подошли.</dd></div>
             </dl>
 
             <dl class="help-group help-group--wide">
-              <dt class="help-group-title">Цикл и цвета</dt>
-              <div class="help-item"><dt><code>readColors()</code></dt><dd>Заполняет блок <code>colors</code> текущими цветами кубиков.</dd></div>
-              <div class="help-item"><dt><code>for color in colors {}</code></dt><dd>Перебор: Yellow, Blue, Black, Green, Red.</dd></div>
-              <div class="help-item"><dt><code>color</code>, <code>next</code>, <code>previous</code></dt><dd>Текущий, следующий и предыдущий цвет внутри цикла.</dd></div>
-              <div class="help-item"><dt><code>Yellow = 1</code></dt><dd>Присваивание значения 1..5 или <code>None</code>; до <code>readColors()</code> все цвета равны <code>None</code>.</dd></div>
+              <dt class="help-group-title" data-i18n="help.loopColors">Цикл и цвета</dt>
+              <div class="help-item"><dt><code>readColors()</code></dt><dd data-i18n="help.readColors">Заполняет блок colors текущими цветами кубиков.</dd></div>
+              <div class="help-item"><dt><code>for color in colors {}</code></dt><dd data-i18n="help.for">Перебор: Yellow, Blue, Black, Green, Red.</dd></div>
+              <div class="help-item"><dt><code>color</code>, <code>next</code>, <code>previous</code></dt><dd data-i18n="help.variables">Текущий, следующий и предыдущий цвет внутри цикла.</dd></div>
+              <div class="help-item"><dt><code>Yellow = 1</code></dt><dd data-i18n="help.assign">Присваивание значения 1..5 или None; до readColors() все цвета равны None.</dd></div>
             </dl>
           </div>
         </details>
@@ -642,10 +703,9 @@ turn(90)
 straight(50)
 drop(1)</textarea>
         <div class="program-buttons">
-          <button id="runProgramButton" type="button">Run</button>
-          <button id="resetProgramButton" class="secondary-button" type="button">Reset</button>
+          <button id="runProgramButton" type="button" data-i18n="ui.run">Run</button>
+          <button id="resetProgramButton" class="secondary-button" type="button" data-i18n="ui.reset">Reset</button>
         </div>
-        <div id="programStatus" class="program-status">Ready</div>
       </section>
     </aside>
   </main>
@@ -654,6 +714,7 @@ drop(1)</textarea>
     const WORLD_MM = 1000;
     const PROGRAM_STORAGE_KEY = "wro2026JuniorPseudocode";
     const COLOR_SETTINGS_STORAGE_KEY = "wro2026JuniorColorSettings";
+    const LANGUAGE_STORAGE_KEY = "wro2026JuniorLanguage";
     const START_X_MM = 340;
     const START_Y_MM = 820;
     const START_HEADING_RAD = 0;
@@ -696,6 +757,7 @@ drop(1)</textarea>
     const runProgramButton = document.getElementById("runProgramButton");
     const resetProgramButton = document.getElementById("resetProgramButton");
     const programStatus = document.getElementById("programStatus");
+    const languageButtons = Array.from(document.querySelectorAll("[data-language]"));
 
     const background = new Image();
     background.src = BACKGROUND_SRC;
@@ -708,11 +770,11 @@ drop(1)</textarea>
       { name: "yellow", color: "#facc15", textColor: "#111827" }
     ];
     const colorMapOrder = [
-      { name: "yellow", label: "Yellow" },
-      { name: "blue", label: "Blue" },
-      { name: "black", label: "Black" },
-      { name: "green", label: "Green" },
-      { name: "red", label: "Red" }
+      { name: "yellow", labelKey: "color.yellow" },
+      { name: "blue", labelKey: "color.blue" },
+      { name: "black", labelKey: "color.black" },
+      { name: "green", labelKey: "color.green" },
+      { name: "red", labelKey: "color.red" }
     ];
     const colorMapLinePattern = /^\[\s*Yellow\s*:/i;
     const colorMapHeaderPattern = /^colors\s*=\s*$/i;
@@ -749,6 +811,263 @@ drop(1)</textarea>
       index: 0,
       active: null
     };
+    const translations = {
+      ru: {
+        meta: {
+          title: "Симулятор поля WRO 2026 Junior"
+        },
+        color: {
+          yellow: "Жёлтый",
+          blue: "Синий",
+          black: "Чёрный",
+          green: "Зелёный",
+          red: "Красный"
+        },
+        ui: {
+          fieldCrop: "Фрагмент поля",
+          robotSize: "Размер робота",
+          reset: "Сброс",
+          manualColors: "Цвета вручную",
+          cube1: "Кубик 1",
+          cube2: "Кубик 2",
+          cube3: "Кубик 3",
+          cube4: "Кубик 4",
+          trail: "След",
+          keyboardControl: "Управление клавишами",
+          speed: "Скорость",
+          accel: "Ускорение",
+          turn: "Поворот",
+          turnAccel: "Ускорение поворота",
+          heading: "Курс",
+          pseudocode: "Псевдокод",
+          run: "Запуск",
+          pause: "Пауза",
+          russian: "Русский",
+          english: "English"
+        },
+        aria: {
+          simulationControls: "Управление симуляцией",
+          dropArtefacts: "Сброс артефактов",
+          testColors: "Тестовые цвета",
+          simulationField: "Поле симуляции",
+          pseudocodeEditor: "Редактор псевдокода",
+          language: "Язык интерфейса"
+        },
+        help: {
+          summary: "Справочник псевдокода",
+          movement: "Движение",
+          startPoint: "Стартовая поза: X, Y в мм и угол в градусах.",
+          straight: "Вперед на мм; отрицательное значение едет назад.",
+          turn: "Поворот на месте; положительный угол вправо.",
+          turnOne: "Поворот вокруг левого или правого колеса.",
+          drop: "Оставить кубик с номером от 1 до 4.",
+          conditions: "Условия",
+          if: "Сравнение цвета с номером кубика или None.",
+          elif: "Следующая ветка условия; также работает else if.",
+          logic: "Объединяют проверки: color == 2 and next == 1.",
+          else: "Ветка, если предыдущие условия не подошли.",
+          loopColors: "Цикл и цвета",
+          readColors: "Заполняет блок colors текущими цветами кубиков.",
+          for: "Перебор: Yellow, Blue, Black, Green, Red.",
+          variables: "Текущий, следующий и предыдущий цвет внутри цикла.",
+          assign: "Присваивание значения 1..5 или None; до readColors() все цвета равны None."
+        },
+        status: {
+          ready: "Готово",
+          paused: "Пауза",
+          done: "Готово",
+          error: "Ошибка: {message}",
+          runningLine: "Строка {line}: {label}",
+          codeAutosaveUnavailable: "Автосохранение кода недоступно",
+          colorSettingsAutosaveUnavailable: "Автосохранение настроек цветов недоступно",
+          fieldImageLoadFailed: "Не удалось загрузить изображение поля"
+        },
+        errors: {
+          unknownColorOrVariable: "Строка {line}: неизвестный цвет или переменная \"{name}\"",
+          forExpectsColors: "Строка {line}: for ожидает colors",
+          unknownColor: "Строка {line}: неизвестный цвет \"{name}\"",
+          ifExpectsComparison: "Строка {line}: if ожидает Color == 1..5, Color == None, and/or",
+          emptyAndCondition: "Строка {line}: пустое условие and",
+          emptyOrCondition: "Строка {line}: пустое условие or",
+          startPointExpects: "Строка {line}: startPoint ожидает x, y, heading",
+          readColorsExpectsNoArguments: "Строка {line}: readColors не принимает аргументы",
+          assignmentExpectsValue: "Строка {line}: присваивание ожидает Color = 1..5 или Color = None",
+          invalidNumber: "Строка {line}: неверное число",
+          turnOneExpects: "Строка {line}: turn_one ожидает left/right и угол",
+          unknownSyntax: "Строка {line}: неизвестный синтаксис",
+          dropExpects: "Строка {line}: drop ожидает 1..4",
+          unknownCommand: "Строка {line}: неизвестная команда \"{name}\"",
+          startPointFirst: "Строка {line}: startPoint должен быть первой командой",
+          startPointOnlyBeginning: "Строка {line}: startPoint разрешен только в начале",
+          unexpectedBrace: "Строка {line}: неожиданная }",
+          forSyntax: "Строка {line}: for ожидает \"for color in colors {\"",
+          ifSyntax: "Строка {line}: if ожидает \"if Color == 1 {\"",
+          unmatchedBranch: "Строка {line}: {branch} без соответствующего if",
+          missingBrace: "Строка {line}: пропущена }",
+          elseSyntax: "Строка {line}: else ожидает \"else {\" или \"else if Color == 1 {\""
+        }
+      },
+      en: {
+        meta: {
+          title: "WRO 2026 Junior Field Simulator"
+        },
+        color: {
+          yellow: "Yellow",
+          blue: "Blue",
+          black: "Black",
+          green: "Green",
+          red: "Red"
+        },
+        ui: {
+          fieldCrop: "Field crop",
+          robotSize: "Robot size",
+          reset: "Reset",
+          manualColors: "Manual colors",
+          cube1: "Cube 1",
+          cube2: "Cube 2",
+          cube3: "Cube 3",
+          cube4: "Cube 4",
+          trail: "Trail",
+          keyboardControl: "Keyboard control",
+          speed: "Speed",
+          accel: "Accel",
+          turn: "Turn",
+          turnAccel: "Turn accel",
+          heading: "Heading",
+          pseudocode: "Pseudocode",
+          run: "Run",
+          pause: "Pause",
+          russian: "Russian",
+          english: "English"
+        },
+        aria: {
+          simulationControls: "Simulation controls",
+          dropArtefacts: "Drop artefacts",
+          testColors: "Test colors",
+          simulationField: "Simulation field",
+          pseudocodeEditor: "Pseudocode editor",
+          language: "Interface language"
+        },
+        help: {
+          summary: "Pseudocode reference",
+          movement: "Motion",
+          startPoint: "Start pose: X and Y in mm, heading in degrees.",
+          straight: "Move in mm; a negative value moves backward.",
+          turn: "Turn in place; a positive angle turns right.",
+          turnOne: "Turn around the left or right wheel.",
+          drop: "Leave cube number 1 through 4.",
+          conditions: "Conditions",
+          if: "Compare a color with a cube number or None.",
+          elif: "Next condition branch; else if also works.",
+          logic: "Combine checks: color == 2 and next == 1.",
+          else: "Branch used when previous conditions do not match.",
+          loopColors: "Loop and colors",
+          readColors: "Fills the colors block with the current cube colors.",
+          for: "Iterates: Yellow, Blue, Black, Green, Red.",
+          variables: "Current, next, and previous color within the loop.",
+          assign: "Assign 1..5 or None; all colors are None before readColors()."
+        },
+        status: {
+          ready: "Ready",
+          paused: "Paused",
+          done: "Done",
+          error: "Error: {message}",
+          runningLine: "Line {line}: {label}",
+          codeAutosaveUnavailable: "Code autosave unavailable",
+          colorSettingsAutosaveUnavailable: "Color settings autosave unavailable",
+          fieldImageLoadFailed: "Field image failed to load"
+        },
+        errors: {
+          unknownColorOrVariable: "Line {line}: unknown color or variable \"{name}\"",
+          forExpectsColors: "Line {line}: for expects colors",
+          unknownColor: "Line {line}: unknown color \"{name}\"",
+          ifExpectsComparison: "Line {line}: if expects Color == 1..5, Color == None, and/or",
+          emptyAndCondition: "Line {line}: if has empty and condition",
+          emptyOrCondition: "Line {line}: if has empty or condition",
+          startPointExpects: "Line {line}: startPoint expects x, y, heading",
+          readColorsExpectsNoArguments: "Line {line}: readColors expects no arguments",
+          assignmentExpectsValue: "Line {line}: assignment expects Color = 1..5 or Color = None",
+          invalidNumber: "Line {line}: invalid number",
+          turnOneExpects: "Line {line}: turn_one expects left/right and angle",
+          unknownSyntax: "Line {line}: unknown syntax",
+          dropExpects: "Line {line}: drop expects 1..4",
+          unknownCommand: "Line {line}: unknown command \"{name}\"",
+          startPointFirst: "Line {line}: startPoint must be the first command",
+          startPointOnlyBeginning: "Line {line}: startPoint is allowed only at the beginning",
+          unexpectedBrace: "Line {line}: unexpected }",
+          forSyntax: "Line {line}: for expects \"for color in colors {\"",
+          ifSyntax: "Line {line}: if expects \"if Color == 1 {\"",
+          unmatchedBranch: "Line {line}: {branch} without matching if",
+          missingBrace: "Line {line}: missing }",
+          elseSyntax: "Line {line}: else expects \"else {\" or \"else if Color == 1 {\""
+        }
+      }
+    };
+    let activeLanguage = "ru";
+    let programStatusState = { key: "status.ready", values: {}, mode: "" };
+
+    function translationValue(key) {
+      return key.split(".").reduce((value, segment) => value?.[segment], translations[activeLanguage]);
+    }
+
+    function t(key, values = {}) {
+      const template = translationValue(key) || key;
+      return template.replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ""));
+    }
+
+    function localizedError(key, values = {}) {
+      const error = new Error(t(key, values));
+      error.i18nKey = key;
+      error.i18nValues = values;
+      return error;
+    }
+
+    function renderProgramStatus() {
+      programStatus.textContent = t(programStatusState.key, programStatusState.values);
+      programStatus.className = "program-status";
+      if (programStatusState.mode) {
+        programStatus.classList.add(`is-${programStatusState.mode}`);
+      }
+    }
+
+    function applyLanguage() {
+      document.documentElement.lang = activeLanguage;
+      document.title = t("meta.title");
+      for (const element of document.querySelectorAll("[data-i18n]")) {
+        element.textContent = t(element.dataset.i18n);
+      }
+      for (const element of document.querySelectorAll("[data-i18n-aria-label]")) {
+        element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+      }
+      for (const button of languageButtons) {
+        const isActive = button.dataset.language === activeLanguage;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-pressed", String(isActive));
+        button.setAttribute("aria-label", t(button.dataset.language === "ru" ? "ui.russian" : "ui.english"));
+      }
+      updateColorSelectLabels();
+      setProgramRunning(programState.running);
+      renderProgramStatus();
+    }
+
+    function setLanguage(language) {
+      activeLanguage = language === "en" ? "en" : "ru";
+      try {
+        localStorage.setItem(LANGUAGE_STORAGE_KEY, activeLanguage);
+      } catch (error) {
+        // Language selection remains usable when storage is unavailable.
+      }
+      applyLanguage();
+    }
+
+    function loadLanguage() {
+      try {
+        const savedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+        activeLanguage = savedLanguage === "en" ? "en" : "ru";
+      } catch (error) {
+        activeLanguage = "ru";
+      }
+    }
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
@@ -790,7 +1109,7 @@ drop(1)</textarea>
           programInput.value = saved;
         }
       } catch (error) {
-        setProgramStatus("Code autosave unavailable", "error");
+        setProgramStatus("status.codeAutosaveUnavailable", "error");
       }
     }
 
@@ -798,7 +1117,7 @@ drop(1)</textarea>
       try {
         localStorage.setItem(PROGRAM_STORAGE_KEY, programInput.value);
       } catch (error) {
-        setProgramStatus("Code autosave unavailable", "error");
+        setProgramStatus("status.codeAutosaveUnavailable", "error");
       }
     }
 
@@ -817,13 +1136,24 @@ drop(1)</textarea>
       const options = colorMapOrder.map((color) => {
         const option = document.createElement("option");
         option.value = color.name;
-        option.textContent = color.label;
+        option.textContent = t(color.labelKey);
         return option;
       });
 
       for (const select of colorSelects) {
         for (const option of options) {
           select.append(option.cloneNode(true));
+        }
+      }
+    }
+
+    function updateColorSelectLabels() {
+      for (const select of colorSelects) {
+        for (let index = 0; index < select.options.length; index += 1) {
+          const color = colorMapOrder[index];
+          if (color) {
+            select.options[index].textContent = t(color.labelKey);
+          }
         }
       }
     }
@@ -879,7 +1209,7 @@ drop(1)</textarea>
           colors: colorSelects.map((select) => select.value)
         }));
       } catch (error) {
-        setProgramStatus("Color settings autosave unavailable", "error");
+        setProgramStatus("status.colorSettingsAutosaveUnavailable", "error");
       }
     }
 
@@ -899,7 +1229,7 @@ drop(1)</textarea>
         }
         normalizeColorSelects();
       } catch (error) {
-        setProgramStatus("Color settings autosave unavailable", "error");
+        setProgramStatus("status.colorSettingsAutosaveUnavailable", "error");
       }
     }
 
@@ -1358,7 +1688,7 @@ drop(1)</textarea>
       if (scope[normalizedName]) {
         return scope[normalizedName];
       }
-      throw new Error(`Line ${lineNumber}: unknown color or variable "${name}"`);
+      throw localizedError("errors.unknownColorOrVariable", { line: lineNumber, name });
     }
 
     function parseColorList(source, lineNumber) {
@@ -1369,12 +1699,12 @@ drop(1)</textarea>
 
       const names = raw.split(/\s*,\s*|\s+/).filter(Boolean);
       if (names.length === 0) {
-        throw new Error(`Line ${lineNumber}: for expects colors`);
+        throw localizedError("errors.forExpectsColors", { line: lineNumber });
       }
 
       return names.map((name) => {
         if (!knownColorName(name)) {
-          throw new Error(`Line ${lineNumber}: unknown color "${name}"`);
+          throw localizedError("errors.unknownColor", { line: lineNumber, name });
         }
         return name.toLowerCase();
       });
@@ -1498,7 +1828,7 @@ drop(1)</textarea>
       const condition = stripEnclosingParentheses(source);
       const match = condition.match(/^([a-z_][a-z0-9_]*)\s*(==|=|!=)\s*(1|2|3|4|5|none)$/i);
       if (!match) {
-        throw new Error(`Line ${lineNumber}: if expects Color == 1..5, Color == None, and/or`);
+        throw localizedError("errors.ifExpectsComparison", { line: lineNumber });
       }
 
       const actual = colorCubeId(resolveColorName(match[1], scope, lineNumber), parseState);
@@ -1511,7 +1841,7 @@ drop(1)</textarea>
     function evaluateAndExpression(source, lineNumber, scope, parseState) {
       const parts = splitLogicalExpression(stripEnclosingParentheses(source), "and", "&&");
       if (parts.some((part) => part.length === 0)) {
-        throw new Error(`Line ${lineNumber}: if has empty and condition`);
+        throw localizedError("errors.emptyAndCondition", { line: lineNumber });
       }
       return parts.every((part) => evaluateComparison(part, lineNumber, scope, parseState));
     }
@@ -1519,7 +1849,7 @@ drop(1)</textarea>
     function evaluateIfCondition(source, lineNumber, scope, parseState) {
       const parts = splitLogicalExpression(stripEnclosingParentheses(source), "or", "||");
       if (parts.some((part) => part.length === 0)) {
-        throw new Error(`Line ${lineNumber}: if has empty or condition`);
+        throw localizedError("errors.emptyOrCondition", { line: lineNumber });
       }
       return parts.some((part) => evaluateAndExpression(part, lineNumber, scope, parseState));
     }
@@ -1569,7 +1899,7 @@ drop(1)</textarea>
         return normalizedName;
       }
 
-      throw new Error(`Line ${lineNumber}: unknown color or variable "${name}"`);
+      throw localizedError("errors.unknownColorOrVariable", { line: lineNumber, name });
     }
 
     function parseCommandLine(raw, lineNumber, scope = {}) {
@@ -1586,7 +1916,7 @@ drop(1)</textarea>
       }
 
       if (/^startPoint\b/i.test(raw)) {
-        throw new Error(`Line ${lineNumber}: startPoint expects x, y, heading`);
+        throw localizedError("errors.startPointExpects", { line: lineNumber });
       }
 
       if (/^readColors\s*\(\s*\)$/i.test(raw)) {
@@ -1598,7 +1928,7 @@ drop(1)</textarea>
       }
 
       if (/^readColors\b/i.test(raw)) {
-        throw new Error(`Line ${lineNumber}: readColors expects no arguments`);
+        throw localizedError("errors.readColorsExpectsNoArguments", { line: lineNumber });
       }
 
       const assignmentMatch = raw.match(/^([a-z_][a-z0-9_]*)\s*=\s*(1|2|3|4|5|none)$/i);
@@ -1613,14 +1943,14 @@ drop(1)</textarea>
       }
 
       if (/^[a-z_][a-z0-9_]*\s*=/i.test(raw)) {
-        throw new Error(`Line ${lineNumber}: assignment expects Color = 1..5 or Color = None`);
+        throw localizedError("errors.assignmentExpectsValue", { line: lineNumber });
       }
 
       const turnOneMatch = raw.match(/^turn_one\s*\(\s*(left|right)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)$/i);
       if (turnOneMatch) {
         const value = Number(turnOneMatch[2]);
         if (!Number.isFinite(value)) {
-          throw new Error(`Line ${lineNumber}: invalid number`);
+          throw localizedError("errors.invalidNumber", { line: lineNumber });
         }
         return {
           type: "turn_one",
@@ -1632,18 +1962,18 @@ drop(1)</textarea>
       }
 
       if (/^turn_one\b/i.test(raw)) {
-        throw new Error(`Line ${lineNumber}: turn_one expects left/right and angle`);
+        throw localizedError("errors.turnOneExpects", { line: lineNumber });
       }
 
       const match = raw.match(/^([a-z]+)\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*\)$/i);
       if (!match) {
-        throw new Error(`Line ${lineNumber}: unknown syntax`);
+        throw localizedError("errors.unknownSyntax", { line: lineNumber });
       }
 
       const name = match[1].toLowerCase();
       const value = Number(match[2]);
       if (!Number.isFinite(value)) {
-        throw new Error(`Line ${lineNumber}: invalid number`);
+        throw localizedError("errors.invalidNumber", { line: lineNumber });
       }
 
       if (name === "straight") {
@@ -1656,18 +1986,18 @@ drop(1)</textarea>
 
       if (name === "drop") {
         if (!Number.isInteger(value) || value < 1 || value > 4) {
-          throw new Error(`Line ${lineNumber}: drop expects 1..4`);
+          throw localizedError("errors.dropExpects", { line: lineNumber });
         }
         return { type: "drop", value: String(value), line: lineNumber, label: raw };
       }
 
-      throw new Error(`Line ${lineNumber}: unknown command "${name}"`);
+      throw localizedError("errors.unknownCommand", { line: lineNumber, name });
     }
 
     function parseStartPointCommand(raw, lineNumber) {
       const command = parseCommandLine(raw, lineNumber);
       if (command.type !== "start_point") {
-        throw new Error(`Line ${lineNumber}: startPoint must be the first command`);
+        throw localizedError("errors.startPointFirst", { line: lineNumber });
       }
       return command;
     }
@@ -1686,7 +2016,7 @@ drop(1)</textarea>
 
         if (raw === "}") {
           if (!needsClosingBrace) {
-            throw new Error(`Line ${lineNumber}: unexpected }`);
+            throw localizedError("errors.unexpectedBrace", { line: lineNumber });
           }
           return { commands, nextIndex: i + 1 };
         }
@@ -1718,7 +2048,7 @@ drop(1)</textarea>
         }
 
         if (/^for\b/i.test(raw)) {
-          throw new Error(`Line ${lineNumber}: for expects "for color in colors {"`);
+          throw localizedError("errors.forSyntax", { line: lineNumber });
         }
 
         const ifMatch = raw.match(/^if\s+(.+?)\s*\{\s*$/i);
@@ -1730,11 +2060,14 @@ drop(1)</textarea>
         }
 
         if (/^if\b/i.test(raw)) {
-          throw new Error(`Line ${lineNumber}: if expects "if Color == 1 {"`);
+          throw localizedError("errors.ifSyntax", { line: lineNumber });
         }
 
         if (/^(?:elif|else\s+if|else)\b/i.test(raw)) {
-          throw new Error(`Line ${lineNumber}: ${raw.split(/\s+/)[0]} without matching if`);
+          throw localizedError("errors.unmatchedBranch", {
+            line: lineNumber,
+            branch: raw.split(/\s+/)[0]
+          });
         }
 
         const command = parseCommandLine(raw, lineNumber, scope);
@@ -1745,7 +2078,7 @@ drop(1)</textarea>
 
       if (needsClosingBrace) {
         const lastLine = lines.length > 0 ? lines[lines.length - 1].lineNumber : 1;
-        throw new Error(`Line ${lastLine}: missing }`);
+        throw localizedError("errors.missingBrace", { line: lastLine });
       }
 
       return { commands, nextIndex: i };
@@ -1801,7 +2134,7 @@ drop(1)</textarea>
         }
 
         if (/^else\b/i.test(raw)) {
-          throw new Error(`Line ${lineNumber}: else expects "else {" or "else if Color == 1 {"`);
+          throw localizedError("errors.elseSyntax", { line: lineNumber });
         }
 
         break;
@@ -1814,38 +2147,43 @@ drop(1)</textarea>
       const lines = normalizeProgramLines(source);
       const firstCommandLine = lines.find((line) => line.text.trim().length > 0);
       if (!firstCommandLine) {
-        throw new Error("Line 1: startPoint must be the first command");
+        throw localizedError("errors.startPointFirst", { line: 1 });
       }
       parseStartPointCommand(firstCommandLine.text.trim(), firstCommandLine.lineNumber);
       const { commands } = parseCommandBlock(lines, 0, false, {}, createParseState());
 
       if (commands[0]?.type !== "start_point") {
-        throw new Error(`Line ${firstCommandLine.lineNumber}: startPoint must be the first command`);
+        throw localizedError("errors.startPointFirst", { line: firstCommandLine.lineNumber });
       }
 
       const laterStartPoint = commands.find((command, index) => command.type === "start_point" && index > 0);
       if (laterStartPoint) {
-        throw new Error(`Line ${laterStartPoint.line}: startPoint is allowed only at the beginning`);
+        throw localizedError("errors.startPointOnlyBeginning", { line: laterStartPoint.line });
       }
 
       return commands;
     }
 
-    function setProgramStatus(text, mode = "") {
-      programStatus.textContent = text;
-      programStatus.className = "program-status";
-      if (mode) {
-        programStatus.classList.add(`is-${mode}`);
+    function setProgramStatus(key, mode = "", values = {}) {
+      programStatusState = { key, mode, values };
+      renderProgramStatus();
+    }
+
+    function setProgramStatusFromError(error) {
+      if (error?.i18nKey) {
+        setProgramStatus(error.i18nKey, "error", error.i18nValues);
+      } else {
+        setProgramStatus("status.error", "error", { message: error?.message || String(error) });
       }
     }
 
     function setProgramRunning(running) {
       programState.running = running;
-      runProgramButton.textContent = running ? "Pause" : "Run";
+      runProgramButton.textContent = t(running ? "ui.pause" : "ui.run");
       runProgramButton.classList.toggle("secondary-button", programState.paused);
     }
 
-    function clearProgramExecution(status = "Ready") {
+    function clearProgramExecution(status = "status.ready") {
       programState.running = false;
       programState.paused = false;
       programState.commands = [];
@@ -1861,7 +2199,7 @@ drop(1)</textarea>
       programState.running = false;
       programState.paused = true;
       setProgramRunning(false);
-      setProgramStatus("Paused");
+      setProgramStatus("status.paused");
     }
 
     function resumeProgramExecution() {
@@ -1874,7 +2212,7 @@ drop(1)</textarea>
       setProgramRunning(true);
       const command = programState.active || programState.commands[programState.index];
       if (command) {
-        setProgramStatus(`Line ${command.line}: ${command.label}`, "running");
+        setProgramStatus("status.runningLine", "running", command);
       }
     }
 
@@ -1882,8 +2220,8 @@ drop(1)</textarea>
       try {
         resetRobot();
       } catch (error) {
-        clearProgramExecution(error.message);
-        setProgramStatus(error.message, "error");
+        clearProgramExecution();
+        setProgramStatusFromError(error);
       }
     }
 
@@ -1894,8 +2232,8 @@ drop(1)</textarea>
         resetRobot({ stopProgram: false, startPoint });
         commands = parseProgram(programInput.value);
       } catch (error) {
-        clearProgramExecution(error.message);
-        setProgramStatus(error.message, "error");
+        clearProgramExecution();
+        setProgramStatusFromError(error);
         return;
       }
 
@@ -1905,13 +2243,13 @@ drop(1)</textarea>
       programState.paused = false;
 
       if (commands.length === 0) {
-        clearProgramExecution("Done");
-        setProgramStatus("Done", "done");
+        clearProgramExecution("status.done");
+        setProgramStatus("status.done", "done");
         return;
       }
 
       setProgramRunning(true);
-      setProgramStatus(`Line ${commands[0].line}: ${commands[0].label}`, "running");
+      setProgramStatus("status.runningLine", "running", commands[0]);
     }
 
     function beginProgramCommand(command) {
@@ -1959,18 +2297,18 @@ drop(1)</textarea>
       programState.active = null;
 
       if (programState.index >= programState.commands.length) {
-        clearProgramExecution("Done");
-        setProgramStatus("Done", "done");
+        clearProgramExecution("status.done");
+        setProgramStatus("status.done", "done");
         return;
       }
 
       const next = programState.commands[programState.index];
-      setProgramStatus(`Line ${next.line}: ${next.label}`, "running");
+      setProgramStatus("status.runningLine", "running", next);
     }
 
-    function failProgram(message) {
-      clearProgramExecution(message);
-      setProgramStatus(message, "error");
+    function failProgram(error) {
+      clearProgramExecution();
+      setProgramStatusFromError(error);
     }
 
     function updateProgram(dtSeconds) {
@@ -2316,9 +2654,15 @@ drop(1)</textarea>
       assetError.classList.add("is-visible");
     });
 
+    for (const button of languageButtons) {
+      button.addEventListener("click", () => setLanguage(button.dataset.language));
+    }
+
     setupColorSelects();
     loadSavedProgram();
     loadColorSettings();
+    loadLanguage();
+    applyLanguage();
     resetFromProgram();
     requestAnimationFrame(tick);
   </script>
