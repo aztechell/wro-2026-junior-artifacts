@@ -132,7 +132,7 @@
     .right-panel .program-panel {
       height: calc(100vh - 32px);
       align-content: start;
-      grid-template-rows: auto minmax(560px, 1fr) auto auto auto;
+      grid-template-rows: auto auto minmax(560px, 1fr) auto auto;
     }
 
     textarea {
@@ -205,56 +205,71 @@
     }
 
     .pseudocode-help {
-      border: 1px solid #e4e7ec;
-      border-radius: 6px;
-      background: #f8fafc;
+      border: 0;
+      border-bottom: 1px solid #e4e7ec;
       color: var(--ink);
       font-size: 13px;
       line-height: 1.35;
+      padding-bottom: 12px;
     }
 
     .pseudocode-help summary {
       cursor: pointer;
-      padding: 8px 10px;
-      color: var(--muted);
+      color: var(--ink);
       font-weight: 700;
       user-select: none;
     }
 
     .pseudocode-help-body {
       display: grid;
-      gap: 8px;
-      border-top: 1px solid #e4e7ec;
-      padding: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 16px;
+      padding-top: 10px;
     }
 
-    .help-list {
+    .help-group {
       display: grid;
-      gap: 5px;
+      align-content: start;
+      gap: 6px;
       margin: 0;
     }
 
-    .help-list div {
+    .help-group--wide {
+      grid-column: 1 / -1;
+    }
+
+    .help-group-title {
+      margin: 0 0 1px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .help-item {
       display: grid;
-      grid-template-columns: minmax(120px, max-content) 1fr;
-      gap: 8px;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .help-item dt,
+    .help-item dd {
+      margin: 0;
     }
 
     .pseudocode-help code {
       color: #0f172a;
       font-family: Consolas, "Courier New", monospace;
       font-size: 12px;
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
 
-    .pseudocode-help pre {
-      margin: 0;
-      overflow: auto;
-      border-radius: 6px;
-      padding: 8px;
-      background: #111827;
-      color: #f8fafc;
-      font: 12px/1.35 Consolas, "Courier New", monospace;
+    .help-item dd {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.3;
     }
 
     .drop-grid {
@@ -432,6 +447,14 @@
         min-height: 520px;
       }
 
+      .pseudocode-help-body {
+        grid-template-columns: 1fr;
+      }
+
+      .help-group--wide {
+        grid-column: auto;
+      }
+
       .canvas-shell {
         width: 100%;
         min-width: 0;
@@ -569,6 +592,33 @@
     <aside class="side right-panel" aria-label="Pseudocode editor">
       <section class="panel program-panel">
         <h1>Pseudocode</h1>
+        <details class="pseudocode-help" open>
+          <summary>Справочник псевдокода</summary>
+          <div class="pseudocode-help-body">
+            <dl class="help-group">
+              <dt class="help-group-title">Движение</dt>
+              <div class="help-item"><dt><code>straight(100)</code></dt><dd>Вперед на мм; отрицательное значение едет назад.</dd></div>
+              <div class="help-item"><dt><code>turn(90)</code></dt><dd>Поворот на месте; положительный угол вправо.</dd></div>
+              <div class="help-item"><dt><code>turn_one(left, 90)</code></dt><dd>Поворот вокруг левого или правого колеса.</dd></div>
+              <div class="help-item"><dt><code>drop(1)</code></dt><dd>Оставить кубик с номером от 1 до 4.</dd></div>
+            </dl>
+
+            <dl class="help-group">
+              <dt class="help-group-title">Условия</dt>
+              <div class="help-item"><dt><code>if Yellow == 1 {}</code></dt><dd>Сравнение цвета с номером кубика или <code>None</code>.</dd></div>
+              <div class="help-item"><dt><code>elif color == 2 {}</code></dt><dd>Следующая ветка условия; также работает <code>else if</code>.</dd></div>
+              <div class="help-item"><dt><code>and</code> / <code>or</code></dt><dd>Объединяют проверки: <code>color == 2 and next == 1</code>.</dd></div>
+              <div class="help-item"><dt><code>else {}</code></dt><dd>Ветка, если предыдущие условия не подошли.</dd></div>
+            </dl>
+
+            <dl class="help-group help-group--wide">
+              <dt class="help-group-title">Цикл и значения</dt>
+              <div class="help-item"><dt><code>for color in colors {}</code></dt><dd>Перебор: Yellow, Blue, Black, Green, Red.</dd></div>
+              <div class="help-item"><dt><code>color</code>, <code>next</code>, <code>previous</code></dt><dd>Текущий, следующий и предыдущий цвет внутри цикла.</dd></div>
+              <div class="help-item"><dt><code>Yellow = 1</code></dt><dd>Присваивание значения 1..5 или <code>None</code>; также доступны <code>color</code>, <code>next</code>, <code>previous</code>.</dd></div>
+            </dl>
+          </div>
+        </details>
         <textarea id="programInput" spellcheck="false">straight(100)
 turn(90)
 straight(50)
@@ -578,42 +628,6 @@ drop(1)</textarea>
           <button id="resetProgramButton" class="secondary-button" type="button">Reset</button>
         </div>
         <div id="programStatus" class="program-status">Ready</div>
-        <details class="pseudocode-help">
-          <summary>Справочник псевдокода</summary>
-          <div class="pseudocode-help-body">
-            <dl class="help-list">
-              <div><dt><code>straight(100)</code></dt><dd>ехать вперед, мм; минус едет назад</dd></div>
-              <div><dt><code>turn(90)</code></dt><dd>поворот на месте, градусы; плюс вправо</dd></div>
-              <div><dt><code>turn_one(left, 90)</code></dt><dd>поворот одним колесом: <code>left</code> или <code>right</code></dd></div>
-              <div><dt><code>drop(1)</code></dt><dd>оставить кубик 1..4; цвет в условиях не меняется</dd></div>
-              <div><dt><code>Yellow = 1</code></dt><dd>присвоить цвету номер: 1..5 или <code>None</code></dd></div>
-              <div><dt><code>color = 1</code></dt><dd>присвоить текущему цвету внутри <code>for</code></dd></div>
-              <div><dt><code>next = 5</code></dt><dd>присвоить следующему цвету внутри <code>for</code></dd></div>
-              <div><dt><code>previous = 5</code></dt><dd>присвоить предыдущему цвету внутри <code>for</code></dd></div>
-              <div><dt><code>if Yellow == 1 {}</code></dt><dd>условие по цвету: 1..5 или <code>None</code></dd></div>
-              <div><dt><code>if Yellow == 2 and Blue == 1 {}</code></dt><dd>можно объединять условия через <code>and</code> / <code>or</code></dd></div>
-              <div><dt><code>if color != None {}</code></dt><dd>условие внутри цикла</dd></div>
-              <div><dt><code>if next == 1 {}</code></dt><dd>проверка следующего цвета внутри <code>for</code></dd></div>
-              <div><dt><code>if previous == 1 {}</code></dt><dd>проверка предыдущего цвета внутри <code>for</code></dd></div>
-              <div><dt><code>elif color == 2 {}</code> / <code>else if color == 2 {}</code></dt><dd>следующая ветка той же цепочки</dd></div>
-              <div><dt><code>else {}</code></dt><dd>ветка, если выше ничего не сработало</dd></div>
-              <div><dt><code>for color in colors {}</code></dt><dd>цикл: Yellow, Blue, Black, Green, Red</dd></div>
-            </dl>
-            <pre>for color in colors {
-  if color == 2 {
-    turn(-90)
-    drop(2)
-    if next == 1 {
-      drop(1)
-      next = 5
-    }
-    if previous == 3 {
-      previous = 5
-    }
-  }
-}</pre>
-          </div>
-        </details>
       </section>
     </aside>
   </main>
