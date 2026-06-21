@@ -866,6 +866,7 @@ drop(1)</textarea>
     </aside>
   </main>
 
+  <script src="assets/matter-0.20.0.min.js"></script>
   <script>
     const WORLD_MM = 1000;
     const PROGRAM_STORAGE_KEY = "wro2026JuniorPseudocode";
@@ -886,9 +887,30 @@ drop(1)</textarea>
     const HALF_WHEEL_TRACK_MM = WHEEL_TRACK_MM / 2;
     const WHEEL_DIAMETER_MM = 62.4;
     const WHEEL_WIDTH_MM = 24;
-    const ARTIFACT_SIZE_MM = 44;
+    const ARTIFACT_SIZE_MM = 48;
     const HALF_ARTIFACT_MM = ARTIFACT_SIZE_MM / 2;
+    const ARTIFACT_CORE_SIZE_MM = 32;
+    const HALF_ARTIFACT_CORE_MM = ARTIFACT_CORE_SIZE_MM / 2;
+    const ARTIFACT_SIDE_TAB_WIDTH_MM = 8;
     const BACKGROUND_SRC = "assets/field-crop-1000.png";
+    const PHYSICS = Object.freeze({
+      stepMs: 1000 / 60,
+      wallThicknessMm: 24,
+      topWallInsetMm: 2,
+      topSafetyLimitMm: -2,
+      // The robot is a driven platform and must dominate lightweight artefacts.
+      robotDensity: 0.02,
+      robotFriction: 0.7,
+      robotStaticFriction: 1,
+      wheelLateralGrip: 0.62,
+      artefactDensity: 0.0015,
+      artefactFriction: 0.8,
+      artefactStaticFriction: 1,
+      artefactAirFriction: 0.08,
+      artefactGroundDecelerationMmS2: 1800,
+      artefactStaticSpeedMmS: 25,
+      artefactAngularDamping: 0.35
+    });
 
     const canvas = document.getElementById("field");
     const ctx = canvas.getContext("2d");
@@ -920,6 +942,20 @@ drop(1)</textarea>
 
     const background = new Image();
     background.src = BACKGROUND_SRC;
+    const { Body, Bodies, Collision, Composite, Engine } = Matter;
+    const physics = {
+      engine: Engine.create({ gravity: { x: 0, y: 0 } }),
+      robotBody: null,
+      topWall: null,
+      accumulatorMs: 0,
+      drive: {
+        linearMmS: 0,
+        angularRadS: 0
+      }
+    };
+    physics.engine.positionIterations = 16;
+    physics.engine.velocityIterations = 8;
+    physics.engine.constraintIterations = 4;
 
     const artefactColors = [
       { name: "red", color: "#dc2626", textColor: "#ffffff" },
@@ -999,7 +1035,7 @@ for color in colors {
     turn(-90)
   }
 
-  straight(-132)
+  straight(-131)
 }`
       }),
       Object.freeze({
@@ -1069,7 +1105,7 @@ for color in colors {
     turn(-90)
   }
 
-  straight(-132)
+  straight(-131)
 }`
       }),
       Object.freeze({
@@ -1155,7 +1191,97 @@ for color in colors {
     turn(-90)
   }
 
-  straight(-132)
+  straight(-131)
+}`
+      }),
+      Object.freeze({
+        id: "solution-4",
+        readonly: true,
+        labelKey: "tabs.solution4",
+        code: `startPoint(340, 820, 0)
+
+colors =
+[Yellow: None,
+Blue: None,
+Black: None,
+Green: None,
+Red: None]
+readColors()
+
+// выравнивание об стену перед тем как поставить
+
+straight(800)
+straight(-150)
+turn(90)
+straight(390)
+
+for color in colors {
+  if color == 1 {
+    straight(130)
+    turn(-90)
+
+    if previous == None {
+      straight(160)
+      straight(-10)
+      drop(1)
+      straight(-140)
+
+    } else {
+      straight(55)
+      drop(1)
+      straight(-130)
+      straight(130)
+      straight(-55)
+    }
+    turn(90)
+    straight(-130)
+
+  } else if color == 2 {
+    turn(-90)
+    straight(160)
+    straight(-10)
+    drop(2)
+    if next == 1 {
+      drop(1)
+      next = 5
+    }
+    straight(-140)
+    turn(90)
+
+  } else if color == 3 {
+    straight(130)
+    turn(90)
+
+    if previous == None {
+      straight(-160)
+      straight(-10)
+      drop(3)
+      straight(140)
+
+    } else {
+      straight(-55)
+      drop(3)
+      straight(130)
+      straight(-130)
+      straight(55)
+    }
+    turn(-90)
+    straight(-130)
+
+  } else if color == 4 {
+    turn(90)
+    straight(-160)
+    straight(-10)
+    drop(4)
+    if next == 3 {
+      drop(3)
+      next = 5
+    }
+    straight(140)
+    turn(-90)
+  }
+
+  straight(-131)
 }`
       })
     ]);
@@ -1199,6 +1325,7 @@ for color in colors {
           solution1: "Решение 1",
           solution2: "Решение 2",
           solution3: "Решение 3",
+          solution4: "Решение 4",
           newProgram: "Новый код",
           closeProgram: "Закрыть код {number}",
           readOnlySolution: "Готовое решение: изменение отключено"
@@ -1306,6 +1433,7 @@ for color in colors {
           solution1: "Solution 1",
           solution2: "Solution 2",
           solution3: "Solution 3",
+          solution4: "Solution 4",
           newProgram: "New code",
           closeProgram: "Close code {number}",
           readOnlySolution: "Built-in solution: editing is disabled"
@@ -1523,7 +1651,10 @@ for color in colors {
 
     function addBuiltInPrograms() {
       for (const builtIn of BUILT_IN_PROGRAMS) {
-        if (!programs.some((program) => program.id === builtIn.id)) {
+        const existing = programs.find((program) => program.id === builtIn.id);
+        if (existing?.readonly) {
+          Object.assign(existing, builtIn);
+        } else if (!existing) {
           programs.push({ ...builtIn });
         }
       }
@@ -1962,14 +2093,9 @@ for color in colors {
       keys.clear();
       resetManualMotion();
       const configuredStartPoint = startPoint || parseStartPoint(ensureProgramPrologue());
-      const startPose = applyTopBorder(
-        configuredStartPoint.xMm,
-        configuredStartPoint.yMm,
-        configuredStartPoint.headingDeg * Math.PI / 180
-      );
-      robot.xMm = startPose.xMm;
-      robot.yMm = startPose.yMm;
-      robot.headingRad = startPose.headingRad;
+      robot.xMm = configuredStartPoint.xMm;
+      robot.yMm = configuredStartPoint.yMm;
+      robot.headingRad = configuredStartPoint.headingDeg * Math.PI / 180;
       trail.length = 0;
       if (manualColorsToggle.checked) {
         applyManualArtefactColors();
@@ -1980,11 +2106,13 @@ for color in colors {
       updateProgramColorMapBlock();
       for (const artefact of artefacts) {
         artefact.dropped = false;
-        artefact.collisionActive = false;
         artefact.xMm = null;
         artefact.yMm = null;
         artefact.headingRad = 0;
+        artefact.body = null;
+        artefact.pendingRelease = false;
       }
+      resetPhysicsWorld();
       addTrailPoint();
       updateDropButtons();
       updateStatus();
@@ -1997,124 +2125,6 @@ for color in colors {
       return value;
     }
 
-    function squareCorners(xMm, yMm, headingRad, halfSizeMm) {
-      const cos = Math.cos(headingRad);
-      const sin = Math.sin(headingRad);
-      const local = [
-        [-halfSizeMm, -halfSizeMm],
-        [halfSizeMm, -halfSizeMm],
-        [halfSizeMm, halfSizeMm],
-        [-halfSizeMm, halfSizeMm]
-      ];
-
-      return local.map(([lx, ly]) => ({
-        x: xMm + lx * cos - ly * sin,
-        y: yMm + lx * sin + ly * cos
-      }));
-    }
-
-    function robotCorners(xMm, yMm, headingRad) {
-      return squareCorners(xMm, yMm, headingRad, HALF_ROBOT_MM);
-    }
-
-    function artefactCorners(artefact) {
-      return squareCorners(artefact.xMm, artefact.yMm, artefact.headingRad, HALF_ARTIFACT_MM);
-    }
-
-    function projectionOnAxis(points, axis) {
-      let min = Infinity;
-      let max = -Infinity;
-
-      for (const point of points) {
-        const projected = point.x * axis.x + point.y * axis.y;
-        min = Math.min(min, projected);
-        max = Math.max(max, projected);
-      }
-
-      return { min, max };
-    }
-
-    function polygonCenter(points) {
-      const total = points.reduce((sum, point) => ({
-        x: sum.x + point.x,
-        y: sum.y + point.y
-      }), { x: 0, y: 0 });
-
-      return {
-        x: total.x / points.length,
-        y: total.y / points.length
-      };
-    }
-
-    function polygonAxes(points) {
-      const axes = [];
-      for (let i = 0; i < points.length; i += 1) {
-        const current = points[i];
-        const next = points[(i + 1) % points.length];
-        const edgeX = next.x - current.x;
-        const edgeY = next.y - current.y;
-        const length = Math.hypot(edgeX, edgeY);
-        axes.push({ x: -edgeY / length, y: edgeX / length });
-      }
-      return axes;
-    }
-
-    function polygonsOverlap(a, b) {
-      const axes = [...polygonAxes(a), ...polygonAxes(b)];
-      const epsilon = 0.01;
-
-      for (const axis of axes) {
-        const projectedA = projectionOnAxis(a, axis);
-        const projectedB = projectionOnAxis(b, axis);
-        if (projectedA.max <= projectedB.min + epsilon || projectedB.max <= projectedA.min + epsilon) {
-          return false;
-        }
-      }
-
-      return true;
-    }
-
-    function polygonPushVector(fromPoints, targetPoints) {
-      const axes = [...polygonAxes(fromPoints), ...polygonAxes(targetPoints)];
-      const fromCenter = polygonCenter(fromPoints);
-      const targetCenter = polygonCenter(targetPoints);
-      let smallestOverlap = Infinity;
-      let smallestAxis = null;
-      const epsilon = 0.5;
-
-      for (const axis of axes) {
-        const projectedFrom = projectionOnAxis(fromPoints, axis);
-        const projectedTarget = projectionOnAxis(targetPoints, axis);
-        const overlap = Math.min(projectedFrom.max, projectedTarget.max)
-          - Math.max(projectedFrom.min, projectedTarget.min);
-
-        if (overlap <= 0) {
-          return null;
-        }
-
-        if (overlap < smallestOverlap) {
-          const direction = (targetCenter.x - fromCenter.x) * axis.x
-            + (targetCenter.y - fromCenter.y) * axis.y;
-          smallestOverlap = overlap;
-          smallestAxis = direction < 0
-            ? { x: -axis.x, y: -axis.y }
-            : axis;
-        }
-      }
-
-      return {
-        x: smallestAxis.x * (smallestOverlap + epsilon),
-        y: smallestAxis.y * (smallestOverlap + epsilon)
-      };
-    }
-
-    function robotOverlapsArtefact(xMm, yMm, headingRad, artefact) {
-      return polygonsOverlap(
-        robotCorners(xMm, yMm, headingRad),
-        artefactCorners(artefact)
-      );
-    }
-
     function localToWorld(localX, localY) {
       const cos = Math.cos(robot.headingRad);
       const sin = Math.sin(robot.headingRad);
@@ -2124,59 +2134,267 @@ for color in colors {
       };
     }
 
-    function topBorderOverflow(xMm, yMm, headingRad) {
-      const minY = Math.min(...robotCorners(xMm, yMm, headingRad).map((corner) => corner.y));
-      return Math.max(0, -minY);
+    function stopRobotDrive() {
+      physics.drive.linearMmS = 0;
+      physics.drive.angularRadS = 0;
+      if (physics.robotBody) {
+        Body.setVelocity(physics.robotBody, { x: 0, y: 0 });
+        Body.setAngularVelocity(physics.robotBody, 0);
+      }
     }
 
-    function applyTopBorder(xMm, yMm, headingRad) {
-      return {
-        xMm,
-        yMm: yMm + topBorderOverflow(xMm, yMm, headingRad),
-        headingRad
+    function setRobotDrive(linearMmS, angularRadS) {
+      physics.drive.linearMmS = linearMmS;
+      physics.drive.angularRadS = angularRadS;
+    }
+
+    function turnRobotInPlace(angleRad) {
+      if (physics.robotBody) {
+        Body.setVelocity(physics.robotBody, { x: 0, y: 0 });
+        Body.setAngularVelocity(physics.robotBody, 0);
+        Body.setAngle(physics.robotBody, physics.robotBody.angle + angleRad);
+        robot.headingRad = normalizeAngle(physics.robotBody.angle);
+        return;
+      }
+
+      robot.headingRad = normalizeAngle(robot.headingRad + angleRad);
+    }
+
+    function resetPhysicsWorld() {
+      Composite.clear(physics.engine.world, false, true);
+      Engine.clear(physics.engine);
+      physics.accumulatorMs = 0;
+      stopRobotDrive();
+
+      physics.topWall = Bodies.rectangle(
+        WORLD_MM / 2,
+        -PHYSICS.wallThicknessMm / 2 + PHYSICS.topWallInsetMm,
+        WORLD_MM * 3,
+        PHYSICS.wallThicknessMm,
+        {
+          isStatic: true,
+          friction: 1,
+          restitution: 0,
+          slop: 0
+        }
+      );
+      physics.robotBody = Bodies.rectangle(robot.xMm, robot.yMm, ROBOT_SIZE_MM, ROBOT_SIZE_MM, {
+        angle: robot.headingRad,
+        density: PHYSICS.robotDensity,
+        friction: PHYSICS.robotFriction,
+        frictionStatic: PHYSICS.robotStaticFriction,
+        frictionAir: 0.04,
+        restitution: 0,
+        slop: 0
+      });
+      Composite.add(physics.engine.world, [physics.topWall, physics.robotBody]);
+    }
+
+    function addArtefactPhysicsBody(artefact) {
+      const body = Bodies.rectangle(artefact.xMm, artefact.yMm, ARTIFACT_SIZE_MM, ARTIFACT_SIZE_MM, {
+        angle: artefact.headingRad,
+        density: PHYSICS.artefactDensity,
+        friction: PHYSICS.artefactFriction,
+        frictionStatic: PHYSICS.artefactStaticFriction,
+        frictionAir: PHYSICS.artefactAirFriction,
+        restitution: 0,
+        slop: 0,
+        collisionFilter: {
+          group: 0,
+          category: 0x0001,
+          mask: 0
+        }
+      });
+      artefact.body = body;
+      artefact.pendingRelease = true;
+      Composite.add(physics.engine.world, body);
+    }
+
+    function applyRobotDriveForStep() {
+      if (!physics.robotBody) return;
+
+      const body = physics.robotBody;
+      const heading = body.angle;
+      const stepSeconds = PHYSICS.stepMs / 1000;
+
+      // Pseudocode turn() and a keyboard-only turn must stay reproducible.
+      // The wheel model is used for motion and arcs, but a turn in place has
+      // no translation or wheel slip to accumulate.
+      if (
+        Math.abs(physics.drive.linearMmS) < 0.0001
+        && Math.abs(physics.drive.angularRadS) > 0.0001
+      ) {
+        Body.setVelocity(body, { x: 0, y: 0 });
+        const angularDamping = Math.max(1 - body.frictionAir, 0.001);
+        Body.setAngularVelocity(
+          body,
+          physics.drive.angularRadS * stepSeconds / angularDamping
+        );
+        return;
+      }
+
+      const forward = {
+        x: Math.sin(heading),
+        y: -Math.cos(heading)
       };
+      const lateral = {
+        x: Math.cos(heading),
+        y: Math.sin(heading)
+      };
+      const stepSquared = PHYSICS.stepMs * PHYSICS.stepMs;
+      const targetForwardVelocity = physics.drive.linearMmS * stepSeconds;
+      const currentForwardVelocity = (
+        body.velocity.x * forward.x + body.velocity.y * forward.y
+      );
+      const maxForwardVelocityChange = accelerationMmS2 * stepSeconds * stepSeconds;
+      const forwardVelocityChange = Math.max(
+        -maxForwardVelocityChange,
+        Math.min(
+          maxForwardVelocityChange,
+          targetForwardVelocity - currentForwardVelocity
+        )
+      );
+      const forwardForce = body.mass * (
+        forwardVelocityChange + targetForwardVelocity * body.frictionAir
+      ) / (2 * stepSquared);
+      let turnTorque = 0;
+      if (Math.abs(physics.drive.angularRadS) > 0.0001) {
+        const targetAngularVelocity = physics.drive.angularRadS * stepSeconds;
+        const maxAngularVelocityChange = turnAccelerationRadS2 * stepSeconds * stepSeconds;
+        const angularVelocityChange = Math.max(
+          -maxAngularVelocityChange,
+          Math.min(
+            maxAngularVelocityChange,
+            targetAngularVelocity - body.angularVelocity
+          )
+        );
+        turnTorque = body.inertia * (
+          angularVelocityChange + targetAngularVelocity * body.frictionAir
+        ) / stepSquared;
+      }
+
+      for (const wheelX of [-HALF_WHEEL_TRACK_MM, HALF_WHEEL_TRACK_MM]) {
+        const wheelOffset = {
+          x: wheelX * Math.cos(heading),
+          y: wheelX * Math.sin(heading)
+        };
+        const wheelPosition = {
+          x: body.position.x + wheelOffset.x,
+          y: body.position.y + wheelOffset.y
+        };
+        const wheelVelocity = {
+          x: body.velocity.x - body.angularVelocity * wheelOffset.y,
+          y: body.velocity.y + body.angularVelocity * wheelOffset.x
+        };
+        const currentLateralVelocity = (
+          wheelVelocity.x * lateral.x + wheelVelocity.y * lateral.y
+        );
+        const lateralVelocityChange = -currentLateralVelocity * PHYSICS.wheelLateralGrip;
+        const lateralForce = (body.mass / 2) * lateralVelocityChange / stepSquared;
+        const wheelForwardForce = forwardForce - wheelX * turnTorque /
+          (2 * HALF_WHEEL_TRACK_MM * HALF_WHEEL_TRACK_MM);
+
+        Body.applyForce(body, wheelPosition, {
+          x: forward.x * wheelForwardForce + lateral.x * lateralForce,
+          y: forward.y * wheelForwardForce + lateral.y * lateralForce
+        });
+      }
     }
 
-    function keepArtefactInsideTopBorder(artefact) {
-      const minY = Math.min(...artefactCorners(artefact).map((corner) => corner.y));
-      artefact.yMm += Math.max(0, -minY);
+    function enforceTopWallContact(body) {
+      const overflow = PHYSICS.topSafetyLimitMm - body.bounds.min.y;
+      if (overflow <= 0) return;
+
+      Body.setPosition(body, {
+        x: body.position.x,
+        y: body.position.y + overflow
+      });
+      Body.setVelocity(body, {
+        x: body.velocity.x,
+        y: Math.max(0, body.velocity.y)
+      });
     }
 
-    function updateDroppedArtefactCollisionState(xMm, yMm, headingRad) {
+    function enforceTopWall() {
+      enforceTopWallContact(physics.robotBody);
       for (const artefact of artefacts) {
-        if (!artefact.dropped || artefact.collisionActive) continue;
-        if (!robotOverlapsArtefact(xMm, yMm, headingRad, artefact)) {
-          artefact.collisionActive = true;
+        if (artefact.dropped && artefact.body) {
+          enforceTopWallContact(artefact.body);
         }
       }
     }
 
-    function pushActiveArtefactsFromRobot(xMm, yMm, headingRad) {
-      const robotPoints = robotCorners(xMm, yMm, headingRad);
+    function activateReleasedArtefacts() {
+      if (!physics.robotBody) return;
 
       for (const artefact of artefacts) {
-        if (!artefact.dropped || !artefact.collisionActive) continue;
+        if (!artefact.pendingRelease || !artefact.body) continue;
+        if (Collision.collides(physics.robotBody, artefact.body)) continue;
 
-        const push = polygonPushVector(robotPoints, artefactCorners(artefact));
-        if (!push) continue;
-
-        artefact.xMm += push.x;
-        artefact.yMm += push.y;
-        keepArtefactInsideTopBorder(artefact);
+        artefact.pendingRelease = false;
+        artefact.body.collisionFilter.mask = 0xFFFFFFFF;
       }
     }
 
-    function tryApplyRobotPose(xMm, yMm, headingRad) {
-      const nextPose = applyTopBorder(xMm, yMm, headingRad);
-      updateDroppedArtefactCollisionState(nextPose.xMm, nextPose.yMm, nextPose.headingRad);
-      pushActiveArtefactsFromRobot(nextPose.xMm, nextPose.yMm, nextPose.headingRad);
+    function applyArtefactGroundFriction() {
+      const stepSeconds = PHYSICS.stepMs / 1000;
+      const speedReduction = PHYSICS.artefactGroundDecelerationMmS2 * stepSeconds * stepSeconds;
+      const staticSpeed = PHYSICS.artefactStaticSpeedMmS * stepSeconds;
 
-      robot.xMm = nextPose.xMm;
-      robot.yMm = nextPose.yMm;
-      robot.headingRad = nextPose.headingRad;
+      for (const artefact of artefacts) {
+        if (!artefact.dropped || !artefact.body || artefact.pendingRelease) continue;
+
+        const body = artefact.body;
+        const speed = Math.hypot(body.velocity.x, body.velocity.y);
+        if (speed <= staticSpeed) {
+          Body.setVelocity(body, { x: 0, y: 0 });
+          Body.setAngularVelocity(body, 0);
+          continue;
+        }
+
+        const nextSpeed = Math.max(0, speed - speedReduction);
+        const velocityScale = nextSpeed / speed;
+        Body.setVelocity(body, {
+          x: body.velocity.x * velocityScale,
+          y: body.velocity.y * velocityScale
+        });
+        Body.setAngularVelocity(body, body.angularVelocity * PHYSICS.artefactAngularDamping);
+      }
+    }
+
+    function syncPhysicsState() {
+      if (!physics.robotBody) return;
+
+      robot.xMm = physics.robotBody.position.x;
+      robot.yMm = physics.robotBody.position.y;
+      robot.headingRad = normalizeAngle(physics.robotBody.angle);
+
+      for (const artefact of artefacts) {
+        if (!artefact.dropped || !artefact.body) continue;
+        artefact.xMm = artefact.body.position.x;
+        artefact.yMm = artefact.body.position.y;
+        artefact.headingRad = normalizeAngle(artefact.body.angle);
+      }
+    }
+
+    function stepPhysics(dtSeconds) {
+      if (!physics.robotBody) return;
+
+      physics.accumulatorMs = Math.min(physics.accumulatorMs + dtSeconds * 1000, 100);
+      while (physics.accumulatorMs >= PHYSICS.stepMs) {
+        applyRobotDriveForStep();
+        Engine.update(physics.engine, PHYSICS.stepMs);
+        applyArtefactGroundFriction();
+        enforceTopWall();
+        activateReleasedArtefacts();
+        physics.accumulatorMs -= PHYSICS.stepMs;
+      }
+
+      enforceTopWall();
+      activateReleasedArtefacts();
+      syncPhysicsState();
       addTrailPoint();
       updateStatus();
-      return true;
     }
 
     function addTrailPoint() {
@@ -2188,8 +2406,14 @@ for color in colors {
     }
 
     function updateMotion(dtSeconds) {
-      if (programState.running || !keyboardToggle.checked) {
+      if (programState.running) {
         resetManualMotion();
+        return;
+      }
+
+      if (!keyboardToggle.checked) {
+        resetManualMotion();
+        stopRobotDrive();
         return;
       }
 
@@ -2220,25 +2444,11 @@ for color in colors {
         Math.abs(manualLinearSpeedMmS) < 0.01
         && Math.abs(manualTurnSpeedRadS) < 0.0001
       ) {
+        stopRobotDrive();
         return;
       }
 
-      const nextHeading = normalizeAngle(robot.headingRad + manualTurnSpeedRadS * dtSeconds);
-      const nextX = robot.xMm + Math.sin(nextHeading) * manualLinearSpeedMmS * dtSeconds;
-      const nextY = robot.yMm - Math.cos(nextHeading) * manualLinearSpeedMmS * dtSeconds;
-      tryApplyRobotPose(nextX, nextY, nextHeading);
-    }
-
-    function moveRobotBy(distanceMm) {
-      const nextX = robot.xMm + Math.sin(robot.headingRad) * distanceMm;
-      const nextY = robot.yMm - Math.cos(robot.headingRad) * distanceMm;
-      return tryApplyRobotPose(nextX, nextY, robot.headingRad);
-    }
-
-    function moveRobotAroundWheelPivot(pivotX, pivotY, pivotLocalX, headingRad) {
-      const nextX = pivotX - pivotLocalX * Math.cos(headingRad);
-      const nextY = pivotY - pivotLocalX * Math.sin(headingRad);
-      return tryApplyRobotPose(nextX, nextY, headingRad);
+      setRobotDrive(manualLinearSpeedMmS, manualTurnSpeedRadS);
     }
 
     function dropArtefact(id) {
@@ -2247,10 +2457,10 @@ for color in colors {
 
       const world = localToWorld(artefact.localX, artefact.localY);
       artefact.dropped = true;
-      artefact.xMm = clamp(world.xMm, HALF_ARTIFACT_MM, WORLD_MM - HALF_ARTIFACT_MM);
-      artefact.yMm = clamp(world.yMm, HALF_ARTIFACT_MM, WORLD_MM - HALF_ARTIFACT_MM);
+      artefact.xMm = world.xMm;
+      artefact.yMm = world.yMm;
       artefact.headingRad = robot.headingRad;
-      artefact.collisionActive = false;
+      addArtefactPhysicsBody(artefact);
       updateDropButtons();
     }
 
@@ -2775,6 +2985,7 @@ for color in colors {
     }
 
     function clearProgramExecution(status = "status.ready") {
+      stopRobotDrive();
       programState.running = false;
       programState.paused = false;
       programState.commands = [];
@@ -2787,6 +2998,7 @@ for color in colors {
     function pauseProgramExecution() {
       if (!programState.running) return;
 
+      stopRobotDrive();
       programState.running = false;
       programState.paused = true;
       setProgramRunning(false);
@@ -2856,7 +3068,6 @@ for color in colors {
       if (command.type === "turn") {
         return {
           ...command,
-          targetRad: normalizeAngle(robot.headingRad + command.value * Math.PI / 180),
           remainingRad: Math.abs(command.value) * Math.PI / 180,
           direction: Math.sign(command.value) || 1,
           speedRadS: 0
@@ -2867,15 +3078,11 @@ for color in colors {
         const pivotLocalX = command.movingWheel === "left"
           ? HALF_WHEEL_TRACK_MM
           : -HALF_WHEEL_TRACK_MM;
-        const pivot = localToWorld(pivotLocalX, 0);
         return {
           ...command,
-          targetRad: normalizeAngle(robot.headingRad + command.value * Math.PI / 180),
           remainingRad: Math.abs(command.value) * Math.PI / 180,
           direction: Math.sign(command.value) || 1,
           pivotLocalX,
-          pivotX: pivot.xMm,
-          pivotY: pivot.yMm,
           speedRadS: 0
         };
       }
@@ -2897,6 +3104,13 @@ for color in colors {
       setProgramStatus("status.runningLine", "running", next);
     }
 
+    function completeProgramMotionAfterPhysics() {
+      if (!programState.active?.finishAfterPhysics) return;
+
+      stopRobotDrive();
+      completeProgramCommand();
+    }
+
     function failProgram(error) {
       clearProgramExecution();
       setProgramStatusFromError(error);
@@ -2913,29 +3127,34 @@ for color in colors {
       const command = programState.active;
 
       if (command.type === "drop") {
+        stopRobotDrive();
         dropArtefact(command.value);
         completeProgramCommand();
         return;
       }
 
       if (command.type === "start_point") {
+        stopRobotDrive();
         completeProgramCommand();
         return;
       }
 
       if (command.type === "read_colors") {
+        stopRobotDrive();
         updateProgramColorMapBlock(true);
         completeProgramCommand();
         return;
       }
 
       if (command.type === "assign") {
+        stopRobotDrive();
         completeProgramCommand();
         return;
       }
 
       if (command.type === "straight") {
         if (command.remainingMm <= 0) {
+          stopRobotDrive();
           completeProgramCommand();
           return;
         }
@@ -2947,19 +3166,22 @@ for color in colors {
           accelerationMmS2,
           dtSeconds
         );
-        moveRobotBy(motion.step * command.direction);
+        setRobotDrive(
+          (motion.step * command.direction) / Math.max(dtSeconds, 0.001),
+          0
+        );
 
         command.remainingMm -= motion.step;
         command.speedMmS = motion.speed;
         if (command.remainingMm <= 0.001) {
-          completeProgramCommand();
+          command.finishAfterPhysics = true;
         }
         return;
       }
 
       if (command.type === "turn") {
         if (command.remainingRad <= 0) {
-          tryApplyRobotPose(robot.xMm, robot.yMm, command.targetRad);
+          stopRobotDrive();
           completeProgramCommand();
           return;
         }
@@ -2971,14 +3193,12 @@ for color in colors {
           turnAccelerationRadS2,
           dtSeconds
         );
-        const stepRad = motion.step;
-        const nextHeading = normalizeAngle(robot.headingRad + stepRad * command.direction);
-        tryApplyRobotPose(robot.xMm, robot.yMm, nextHeading);
-        command.remainingRad -= stepRad;
+        turnRobotInPlace(motion.step * command.direction);
+        command.remainingRad -= motion.step;
         command.speedRadS = motion.speed;
 
         if (command.remainingRad <= 0.001) {
-          tryApplyRobotPose(robot.xMm, robot.yMm, command.targetRad);
+          stopRobotDrive();
           completeProgramCommand();
         }
         return;
@@ -2986,7 +3206,7 @@ for color in colors {
 
       if (command.type === "turn_one") {
         if (command.remainingRad <= 0) {
-          moveRobotAroundWheelPivot(command.pivotX, command.pivotY, command.pivotLocalX, command.targetRad);
+          stopRobotDrive();
           completeProgramCommand();
           return;
         }
@@ -2999,14 +3219,13 @@ for color in colors {
           dtSeconds
         );
         const stepRad = motion.step;
-        const nextHeading = normalizeAngle(robot.headingRad + stepRad * command.direction);
-        moveRobotAroundWheelPivot(command.pivotX, command.pivotY, command.pivotLocalX, nextHeading);
+        const angularSpeed = (stepRad * command.direction) / Math.max(dtSeconds, 0.001);
+        setRobotDrive(command.pivotLocalX * angularSpeed, angularSpeed);
 
         command.remainingRad -= stepRad;
         command.speedRadS = motion.speed;
         if (command.remainingRad <= 0.001) {
-          moveRobotAroundWheelPivot(command.pivotX, command.pivotY, command.pivotLocalX, command.targetRad);
-          completeProgramCommand();
+          command.finishAfterPhysics = true;
         }
       }
     }
@@ -3030,11 +3249,61 @@ for color in colors {
       ctx.save();
       ctx.translate(xMm, yMm);
       ctx.rotate(headingRad);
+      ctx.globalAlpha = 0.65;
       ctx.fillStyle = artefact.color;
       ctx.strokeStyle = "rgba(17, 24, 39, 0.8)";
-      ctx.lineWidth = 3;
-      ctx.fillRect(-HALF_ARTIFACT_MM, -HALF_ARTIFACT_MM, ARTIFACT_SIZE_MM, ARTIFACT_SIZE_MM);
-      ctx.strokeRect(-HALF_ARTIFACT_MM, -HALF_ARTIFACT_MM, ARTIFACT_SIZE_MM, ARTIFACT_SIZE_MM);
+      ctx.lineWidth = 2;
+
+      // A 48 x 48 body, 32 x 32 number panel, and 8 x 32 side tabs.
+      ctx.fillRect(
+        -HALF_ARTIFACT_MM - ARTIFACT_SIDE_TAB_WIDTH_MM,
+        -HALF_ARTIFACT_CORE_MM,
+        ARTIFACT_SIDE_TAB_WIDTH_MM,
+        ARTIFACT_CORE_SIZE_MM
+      );
+      ctx.strokeRect(
+        -HALF_ARTIFACT_MM - ARTIFACT_SIDE_TAB_WIDTH_MM,
+        -HALF_ARTIFACT_CORE_MM,
+        ARTIFACT_SIDE_TAB_WIDTH_MM,
+        ARTIFACT_CORE_SIZE_MM
+      );
+      ctx.fillRect(
+        HALF_ARTIFACT_MM,
+        -HALF_ARTIFACT_CORE_MM,
+        ARTIFACT_SIDE_TAB_WIDTH_MM,
+        ARTIFACT_CORE_SIZE_MM
+      );
+      ctx.strokeRect(
+        HALF_ARTIFACT_MM,
+        -HALF_ARTIFACT_CORE_MM,
+        ARTIFACT_SIDE_TAB_WIDTH_MM,
+        ARTIFACT_CORE_SIZE_MM
+      );
+      ctx.fillRect(
+        -HALF_ARTIFACT_MM,
+        -HALF_ARTIFACT_MM,
+        ARTIFACT_SIZE_MM,
+        ARTIFACT_SIZE_MM
+      );
+      ctx.strokeRect(
+        -HALF_ARTIFACT_MM,
+        -HALF_ARTIFACT_MM,
+        ARTIFACT_SIZE_MM,
+        ARTIFACT_SIZE_MM
+      );
+      ctx.fillStyle = artefact.color;
+      ctx.fillRect(
+        -HALF_ARTIFACT_CORE_MM,
+        -HALF_ARTIFACT_CORE_MM,
+        ARTIFACT_CORE_SIZE_MM,
+        ARTIFACT_CORE_SIZE_MM
+      );
+      ctx.strokeRect(
+        -HALF_ARTIFACT_CORE_MM,
+        -HALF_ARTIFACT_CORE_MM,
+        ARTIFACT_CORE_SIZE_MM,
+        ARTIFACT_CORE_SIZE_MM
+      );
       ctx.fillStyle = artefact.textColor;
       ctx.font = "bold 24px Arial, Helvetica, sans-serif";
       ctx.textAlign = "center";
@@ -3097,6 +3366,22 @@ for color in colors {
         );
       }
 
+      // Heading 0 points toward the top of the field, so the local arrow points up.
+      ctx.fillStyle = "rgba(255, 255, 255, 0.58)";
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -40);
+      ctx.lineTo(-15, -17);
+      ctx.lineTo(-6, -17);
+      ctx.lineTo(-6, 27);
+      ctx.lineTo(6, 27);
+      ctx.lineTo(6, -17);
+      ctx.lineTo(15, -17);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
       for (const artefact of artefacts) {
         if (!artefact.dropped) {
           drawArtefact(artefact, artefact.localX, artefact.localY, 0);
@@ -3142,6 +3427,8 @@ for color in colors {
       lastTime = now;
       updateProgram(dtSeconds);
       updateMotion(dtSeconds);
+      stepPhysics(dtSeconds);
+      completeProgramMotionAfterPhysics();
       draw();
       requestAnimationFrame(tick);
     }
