@@ -128,6 +128,35 @@
       gap: 12px;
     }
 
+    .sensor-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .sensor-color-value {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .sensor-swatch {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+      border: 1px solid #98a2b3;
+      border-radius: 2px;
+      background: #98a2b3;
+    }
+
     .program-panel {
       display: grid;
       gap: 10px;
@@ -783,6 +812,23 @@
         <p id="assetError" class="error" data-i18n="status.fieldImageLoadFailed">Field image failed to load.</p>
       </section>
 
+      <section class="panel sensor-panel" aria-label="Color sensor" data-i18n-aria-label="aria.colorSensor">
+        <h2 class="panel-title" data-i18n="ui.colorSensor">Color sensor</h2>
+        <dl class="meta">
+          <div class="row">
+            <dt class="label" data-i18n="ui.sensorColor">Color</dt>
+            <dd class="value sensor-color-value">
+              <span id="sensorColorSwatch" class="sensor-swatch" aria-hidden="true"></span>
+              <span id="sensorColorValue">Unknown</span>
+            </dd>
+          </div>
+          <div class="row">
+            <dt class="label" data-i18n="ui.reflectedLight">Reflected light</dt>
+            <dd class="value" id="sensorReflectionValue">-</dd>
+          </div>
+        </dl>
+      </section>
+
       <section class="panel position-panel">
         <dl class="meta">
           <div class="row">
@@ -821,6 +867,7 @@
               <dt class="help-group-title" data-i18n="help.movement">Движение</dt>
               <div class="help-item"><dt><code>startPoint(340, 820, 0)</code></dt><dd data-i18n="help.startPoint">Стартовая поза: X, Y в мм и угол в градусах.</dd></div>
               <div class="help-item"><dt><code>straight(100)</code></dt><dd data-i18n="help.straight">Вперед на мм; отрицательное значение едет назад.</dd></div>
+              <div class="help-item"><dt><code>moveToLine(10)</code></dt><dd data-i18n="help.moveToLine">Едет вперёд, пока отражённый свет не станет меньше порога.</dd></div>
               <div class="help-item"><dt><code>turn(90)</code></dt><dd data-i18n="help.turn">Поворот на месте; положительный угол вправо.</dd></div>
               <div class="help-item"><dt><code>turn_one(left, 90)</code></dt><dd data-i18n="help.turnOne">Поворот вокруг левого или правого колеса.</dd></div>
               <div class="help-item"><dt><code>drop(1)</code></dt><dd data-i18n="help.drop">Оставить кубик с номером от 1 до 4.</dd></div>
@@ -866,6 +913,7 @@ drop(1)</textarea>
     </aside>
   </main>
 
+  <script src="assets/field-sensor-data.js"></script>
   <script src="assets/matter-0.20.0.min.js"></script>
   <script>
     const WORLD_MM = 1000;
@@ -892,6 +940,15 @@ drop(1)</textarea>
     const ARTIFACT_CORE_SIZE_MM = 32;
     const HALF_ARTIFACT_CORE_MM = ARTIFACT_CORE_SIZE_MM / 2;
     const ARTIFACT_SIDE_TAB_WIDTH_MM = 8;
+    const COLOR_SENSOR_WIDTH_MM = 24;
+    const HALF_COLOR_SENSOR_WIDTH_MM = COLOR_SENSOR_WIDTH_MM / 2;
+    const COLOR_SENSOR_DEPTH_MM = 24;
+    const HALF_COLOR_SENSOR_DEPTH_MM = COLOR_SENSOR_DEPTH_MM / 2;
+    const COLOR_SENSOR_LOCAL_X_MM = 0;
+    const COLOR_SENSOR_LOCAL_Y_MM = -96;
+    const COLOR_SENSOR_FACE_SIZE_MM = 16;
+    const HALF_COLOR_SENSOR_FACE_MM = COLOR_SENSOR_FACE_SIZE_MM / 2;
+    const COLOR_SENSOR_LENS_RADIUS_MM = 5;
     const BACKGROUND_SRC = "assets/field-crop-1000.png";
     const PHYSICS = Object.freeze({
       stepMs: 1000 / 60,
@@ -917,6 +974,9 @@ drop(1)</textarea>
     const xValue = document.getElementById("xValue");
     const yValue = document.getElementById("yValue");
     const headingValue = document.getElementById("headingValue");
+    const sensorColorSwatch = document.getElementById("sensorColorSwatch");
+    const sensorColorValue = document.getElementById("sensorColorValue");
+    const sensorReflectionValue = document.getElementById("sensorReflectionValue");
     const resetButton = document.getElementById("resetButton");
     const dropButtons = Array.from(document.querySelectorAll("[data-drop-id]"));
     const manualColorsToggle = document.getElementById("manualColorsToggle");
@@ -942,6 +1002,17 @@ drop(1)</textarea>
 
     const background = new Image();
     background.src = BACKGROUND_SRC;
+    const sensorBackground = new Image();
+    const sensorFieldCanvas = document.createElement("canvas");
+    sensorFieldCanvas.width = WORLD_MM;
+    sensorFieldCanvas.height = WORLD_MM;
+    const sensorFieldContext = sensorFieldCanvas.getContext("2d", { willReadFrequently: true });
+    let sensorFieldReady = false;
+    const colorSensorReading = {
+      color: "unknown",
+      brightness: null,
+      swatch: "#98a2b3"
+    };
     const { Body, Bodies, Collision, Composite, Engine } = Matter;
     const physics = {
       engine: Engine.create({ gravity: { x: 0, y: 0 } }),
@@ -971,6 +1042,14 @@ drop(1)</textarea>
       { name: "green", codeName: "Green", labelKey: "color.green" },
       { name: "red", codeName: "Red", labelKey: "color.red" }
     ];
+    const SENSOR_COLOR_PALETTE = Object.freeze([
+      { name: "black", red: 17, green: 24, blue: 39, swatch: "#111827" },
+      { name: "blue", red: 37, green: 99, blue: 235, swatch: "#2563eb" },
+      { name: "green", red: 22, green: 163, blue: 74, swatch: "#16a34a" },
+      { name: "yellow", red: 250, green: 204, blue: 21, swatch: "#facc15" },
+      { name: "red", red: 220, green: 38, blue: 38, swatch: "#dc2626" },
+      { name: "white", red: 255, green: 255, blue: 255, swatch: "#ffffff" }
+    ]);
     const colorMapLinePattern = /^\[\s*Yellow\s*:/i;
     const colorMapHeaderPattern = /^colors\s*=\s*$/i;
     const readColorsLinePattern = /^readColors\s*\(\s*\)\s*$/i;
@@ -1283,6 +1362,27 @@ for color in colors {
 
   straight(-131)
 }`
+      }),
+      Object.freeze({
+        id: "alignment",
+        readonly: true,
+        labelKey: "tabs.alignment",
+        code: `startPoint(340, 820, 0)
+
+colors =
+[Yellow: None,
+Blue: None,
+Black: None,
+Green: None,
+Red: None]
+readColors()
+
+// выравнивание по стене и линии
+
+straight(800)
+straight(-150)
+turn(90)
+moveToLine(10)`
       })
     ]);
 
@@ -1326,6 +1426,7 @@ for color in colors {
           solution2: "Решение 2",
           solution3: "Решение 3",
           solution4: "Решение 4",
+          alignment: "Выравнивание",
           newProgram: "Новый код",
           closeProgram: "Закрыть код {number}",
           readOnlySolution: "Готовое решение: изменение отключено"
@@ -1339,6 +1440,15 @@ for color in colors {
           black: "Чёрный",
           green: "Зелёный",
           red: "Красный"
+        },
+        sensor: {
+          black: "Чёрный",
+          blue: "Синий",
+          green: "Зелёный",
+          yellow: "Жёлтый",
+          red: "Красный",
+          white: "Белый",
+          unknown: "Неизвестно"
         },
         ui: {
           fieldCrop: "Фрагмент поля",
@@ -1356,6 +1466,9 @@ for color in colors {
           turn: "Поворот",
           turnAccel: "Ускорение поворота",
           heading: "Курс",
+          colorSensor: "Датчик цвета",
+          sensorColor: "Цвет",
+          reflectedLight: "Отражённый свет",
           pseudocode: "Псевдокод",
           run: "Запуск",
           pause: "Пауза",
@@ -1370,7 +1483,8 @@ for color in colors {
           testColors: "Тестовые цвета",
           simulationField: "Поле симуляции",
           pseudocodeEditor: "Редактор псевдокода",
-          language: "Язык интерфейса"
+          language: "Язык интерфейса",
+          colorSensor: "Датчик цвета"
         },
         help: {
           comment: "Комментарий до конца строки; он не выполняется.",
@@ -1378,6 +1492,7 @@ for color in colors {
           movement: "Движение",
           startPoint: "Стартовая поза: X, Y в мм и угол в градусах.",
           straight: "Вперед на мм; отрицательное значение едет назад.",
+          moveToLine: "Едет вперёд, пока отражённый свет не станет меньше порога.",
           turn: "Поворот на месте; положительный угол вправо.",
           turnOne: "Поворот вокруг левого или правого колеса.",
           drop: "Оставить кубик с номером от 1 до 4.",
@@ -1414,6 +1529,7 @@ for color in colors {
           assignmentExpectsValue: "Строка {line}: присваивание ожидает Color = 1..5 или Color = None",
           invalidNumber: "Строка {line}: неверное число",
           turnOneExpects: "Строка {line}: turn_one ожидает left/right и угол",
+          moveToLineExpects: "Строка {line}: moveToLine ожидает значение от 0 до 100",
           unknownSyntax: "Строка {line}: неизвестный синтаксис",
           dropExpects: "Строка {line}: drop ожидает 1..4",
           unknownCommand: "Строка {line}: неизвестная команда \"{name}\"",
@@ -1434,6 +1550,7 @@ for color in colors {
           solution2: "Solution 2",
           solution3: "Solution 3",
           solution4: "Solution 4",
+          alignment: "Alignment",
           newProgram: "New code",
           closeProgram: "Close code {number}",
           readOnlySolution: "Built-in solution: editing is disabled"
@@ -1447,6 +1564,15 @@ for color in colors {
           black: "Black",
           green: "Green",
           red: "Red"
+        },
+        sensor: {
+          black: "Black",
+          blue: "Blue",
+          green: "Green",
+          yellow: "Yellow",
+          red: "Red",
+          white: "White",
+          unknown: "Unknown"
         },
         ui: {
           fieldCrop: "Field crop",
@@ -1464,6 +1590,9 @@ for color in colors {
           turn: "Turn",
           turnAccel: "Turn accel",
           heading: "Heading",
+          colorSensor: "Color sensor",
+          sensorColor: "Color",
+          reflectedLight: "Reflected light",
           pseudocode: "Pseudocode",
           run: "Run",
           pause: "Pause",
@@ -1478,7 +1607,8 @@ for color in colors {
           testColors: "Test colors",
           simulationField: "Simulation field",
           pseudocodeEditor: "Pseudocode editor",
-          language: "Interface language"
+          language: "Interface language",
+          colorSensor: "Color sensor"
         },
         help: {
           comment: "Comment to the end of the line; it is not executed.",
@@ -1486,6 +1616,7 @@ for color in colors {
           movement: "Motion",
           startPoint: "Start pose: X and Y in mm, heading in degrees.",
           straight: "Move in mm; a negative value moves backward.",
+          moveToLine: "Moves forward until reflected light becomes lower than the threshold.",
           turn: "Turn in place; a positive angle turns right.",
           turnOne: "Turn around the left or right wheel.",
           drop: "Leave cube number 1 through 4.",
@@ -1522,6 +1653,7 @@ for color in colors {
           assignmentExpectsValue: "Line {line}: assignment expects Color = 1..5 or Color = None",
           invalidNumber: "Line {line}: invalid number",
           turnOneExpects: "Line {line}: turn_one expects left/right and angle",
+          moveToLineExpects: "Line {line}: moveToLine expects a value from 0 to 100",
           unknownSyntax: "Line {line}: unknown syntax",
           dropExpects: "Line {line}: drop expects 1..4",
           unknownCommand: "Line {line}: unknown command \"{name}\"",
@@ -1585,6 +1717,7 @@ for color in colors {
         button.setAttribute("aria-label", t(button.dataset.language === "ru" ? "ui.russian" : "ui.english"));
       }
       updateColorSelectLabels();
+      updateColorSensorReading(true);
       setProgramRunning(programState.running);
       renderProgramStatus();
     }
@@ -2132,6 +2265,79 @@ for color in colors {
         xMm: robot.xMm + localX * cos - localY * sin,
         yMm: robot.yMm + localX * sin + localY * cos
       };
+    }
+
+    function colorSensorWorldPosition() {
+      return localToWorld(COLOR_SENSOR_LOCAL_X_MM, COLOR_SENSOR_LOCAL_Y_MM);
+    }
+
+    function cacheSensorFieldImage() {
+      if (!sensorFieldContext || !sensorBackground.naturalWidth) {
+        sensorFieldReady = false;
+        return;
+      }
+
+      sensorFieldContext.clearRect(0, 0, WORLD_MM, WORLD_MM);
+      sensorFieldContext.drawImage(sensorBackground, 0, 0, WORLD_MM, WORLD_MM);
+      sensorFieldReady = true;
+    }
+
+    function classifySensorColor(red, green, blue) {
+      let closest = SENSOR_COLOR_PALETTE[0];
+      let closestDistance = Infinity;
+
+      for (const candidate of SENSOR_COLOR_PALETTE) {
+        const distance = (
+          (red - candidate.red) ** 2
+          + (green - candidate.green) ** 2
+          + (blue - candidate.blue) ** 2
+        );
+        if (distance < closestDistance) {
+          closest = candidate;
+          closestDistance = distance;
+        }
+      }
+
+      return closest;
+    }
+
+    function readColorSensor() {
+      if (!sensorFieldReady || !sensorFieldContext) {
+        return { color: "unknown", brightness: null, swatch: "#98a2b3" };
+      }
+
+      try {
+        const position = colorSensorWorldPosition();
+        const x = clamp(Math.round(position.xMm), 0, WORLD_MM - 1);
+        const y = clamp(Math.round(position.yMm), 0, WORLD_MM - 1);
+        const [red, green, blue] = sensorFieldContext.getImageData(x, y, 1, 1).data;
+        const match = classifySensorColor(red, green, blue);
+        const brightness = Math.round((
+          0.2126 * red + 0.7152 * green + 0.0722 * blue
+        ) / 255 * 100);
+
+        return { color: match.name, brightness, swatch: match.swatch };
+      } catch (error) {
+        sensorFieldReady = false;
+        return { color: "unknown", brightness: null, swatch: "#98a2b3" };
+      }
+    }
+
+    function updateColorSensorReading(force = false) {
+      const next = readColorSensor();
+      const changed = (
+        force
+        || next.color !== colorSensorReading.color
+        || next.brightness !== colorSensorReading.brightness
+        || next.swatch !== colorSensorReading.swatch
+      );
+      if (!changed) return;
+
+      Object.assign(colorSensorReading, next);
+      sensorColorSwatch.style.backgroundColor = next.swatch;
+      sensorColorSwatch.style.borderColor = next.color === "white" ? "#98a2b3" : next.swatch;
+      sensorColorValue.textContent = t(`sensor.${next.color}`);
+      sensorReflectionValue.textContent = next.brightness === null ? "-" : `${next.brightness}%`;
     }
 
     function stopRobotDrive() {
@@ -2784,6 +2990,13 @@ for color in colors {
         return { type: "turn", value, line: lineNumber, label: raw };
       }
 
+      if (name === "movetoline") {
+        if (value < 0 || value > 100) {
+          throw localizedError("errors.moveToLineExpects", { line: lineNumber });
+        }
+        return { type: "move_to_line", threshold: value, line: lineNumber, label: raw };
+      }
+
       if (name === "drop") {
         if (!Number.isInteger(value) || value < 1 || value > 4) {
           throw localizedError("errors.dropExpects", { line: lineNumber });
@@ -3179,6 +3392,22 @@ for color in colors {
         return;
       }
 
+      if (command.type === "move_to_line") {
+        if (colorSensorReading.brightness === null) {
+          stopRobotDrive();
+          return;
+        }
+
+        if (colorSensorReading.brightness < command.threshold) {
+          stopRobotDrive();
+          completeProgramCommand();
+          return;
+        }
+
+        setRobotDrive(forwardSpeedMmS, 0);
+        return;
+      }
+
       if (command.type === "turn") {
         if (command.remainingRad <= 0) {
           stopRobotDrive();
@@ -3320,6 +3549,50 @@ for color in colors {
       }
     }
 
+    function drawColorSensor() {
+      ctx.save();
+      ctx.translate(COLOR_SENSOR_LOCAL_X_MM, COLOR_SENSOR_LOCAL_Y_MM);
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "rgba(17, 24, 39, 0.9)";
+      ctx.lineWidth = 2;
+
+      ctx.fillRect(
+        -HALF_COLOR_SENSOR_WIDTH_MM,
+        -HALF_COLOR_SENSOR_DEPTH_MM,
+        COLOR_SENSOR_WIDTH_MM,
+        COLOR_SENSOR_DEPTH_MM
+      );
+      ctx.strokeRect(
+        -HALF_COLOR_SENSOR_WIDTH_MM,
+        -HALF_COLOR_SENSOR_DEPTH_MM,
+        COLOR_SENSOR_WIDTH_MM,
+        COLOR_SENSOR_DEPTH_MM
+      );
+      ctx.fillStyle = "#111827";
+      ctx.fillRect(
+        -HALF_COLOR_SENSOR_FACE_MM,
+        -HALF_COLOR_SENSOR_FACE_MM,
+        COLOR_SENSOR_FACE_SIZE_MM,
+        COLOR_SENSOR_FACE_SIZE_MM
+      );
+      ctx.strokeRect(
+        -HALF_COLOR_SENSOR_FACE_MM,
+        -HALF_COLOR_SENSOR_FACE_MM,
+        COLOR_SENSOR_FACE_SIZE_MM,
+        COLOR_SENSOR_FACE_SIZE_MM
+      );
+      ctx.fillStyle = "#667085";
+      ctx.beginPath();
+      ctx.arc(0, 0, COLOR_SENSOR_LENS_RADIUS_MM, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#111827";
+      ctx.beginPath();
+      ctx.arc(0, 0, COLOR_SENSOR_LENS_RADIUS_MM / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     function drawTrail() {
       if (!trailToggle.checked || trail.length < 2) return;
 
@@ -3366,6 +3639,8 @@ for color in colors {
         );
       }
 
+      drawColorSensor();
+
       // Heading 0 points toward the top of the field, so the local arrow points up.
       ctx.fillStyle = "rgba(255, 255, 255, 0.58)";
       ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
@@ -3396,6 +3671,7 @@ for color in colors {
       drawTrail();
       drawDroppedArtefacts();
       drawRobot();
+      updateColorSensorReading();
     }
 
     function updateStatus() {
@@ -3530,8 +3806,23 @@ for color in colors {
     });
 
     background.addEventListener("error", () => {
+      sensorFieldReady = false;
+      updateColorSensorReading(true);
       assetError.classList.add("is-visible");
     });
+
+    sensorBackground.addEventListener("load", () => {
+      cacheSensorFieldImage();
+      updateColorSensorReading(true);
+      draw();
+    });
+
+    sensorBackground.addEventListener("error", () => {
+      sensorFieldReady = false;
+      updateColorSensorReading(true);
+    });
+
+    sensorBackground.src = window.FIELD_SENSOR_IMAGE_DATA_URL || BACKGROUND_SRC;
 
     for (const button of languageButtons) {
       button.addEventListener("click", () => setLanguage(button.dataset.language));
