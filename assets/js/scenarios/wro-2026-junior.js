@@ -1,5 +1,4 @@
-(function registerWro2026JuniorScenario(global) {
-  "use strict";
+import { registerScenario } from "../core/registry.js";
 
     const BUILT_IN_PROGRAMS = Object.freeze([
       Object.freeze({
@@ -584,7 +583,7 @@ moveToLine(10)`
       }
     };
 
-  global.AlgoSimulator.registerScenario({
+  const wro2026JuniorScenario = registerScenario({
     schemaVersion: 1,
     id: "wro-2026-junior",
     meta: {
@@ -725,4 +724,5 @@ moveToLine(10)`
     },
     translations
   });
-})(globalThis);
+
+export { wro2026JuniorScenario };

@@ -4,11 +4,21 @@ const test = require("node:test");
 const { pathToFileURL } = require("node:url");
 const { chromium } = require("playwright");
 
-const projectUrl = pathToFileURL(path.resolve(__dirname, "..", "index.html")).href;
+const projectRoot = path.resolve(__dirname, "..");
+const serverModuleUrl = pathToFileURL(
+  path.join(projectRoot, "scripts", "static-server.mjs")
+).href;
 
-test("index.html works directly from file:// with legacy storage and current behavior", {
+test("index.html works over HTTP with ES modules and current behavior", {
   timeout: 30_000
 }, async (t) => {
+  const { createStaticServer } = await import(serverModuleUrl);
+  const server = createStaticServer(projectRoot);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const { port } = server.address();
+  const projectUrl = `http://127.0.0.1:${port}/`;
+
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -18,7 +28,10 @@ test("index.html works directly from file:// with legacy storage and current beh
   page.on("requestfailed", (request) => failedRequests.push(request.url()));
 
   await page.goto(projectUrl);
-  await page.waitForFunction(() => Boolean(window.AlgoSimulator?.defaultSimulator));
+  await page.waitForFunction(async () => {
+    const { defaultSimulator } = await import("/assets/js/bootstrap.js");
+    return Boolean(defaultSimulator);
+  });
 
   assert.equal(await page.title(), "Симулятор поля WRO 2026 Junior");
   assert.deepEqual(
@@ -30,7 +43,10 @@ test("index.html works directly from file:// with legacy storage and current beh
     [1000, 1000]
   );
   assert.equal(
-    await page.evaluate(() => window.AlgoSimulator.listScenarios()[0].id),
+    await page.evaluate(async () => {
+      const { listScenarios } = await import("/assets/js/core/registry.js");
+      return listScenarios()[0].id;
+    }),
     "wro-2026-junior"
   );
 
@@ -45,7 +61,13 @@ test("index.html works directly from file:// with legacy storage and current beh
     }));
   });
   await page.reload();
-  await page.waitForFunction(() => Boolean(window.AlgoSimulator?.defaultSimulator));
+  await page.waitForFunction(async () => {
+    const { defaultSimulator } = await import("/assets/js/bootstrap.js");
+    return Boolean(defaultSimulator);
+  });
+  await page.evaluate(async () => {
+    window.__testSimulator = (await import("/assets/js/bootstrap.js")).defaultSimulator;
+  });
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
   assert.match(await page.locator("#programInput").inputValue(), /straight\(42\)/);
 
@@ -56,34 +78,31 @@ test("index.html works directly from file:// with legacy storage and current beh
   await page.locator("#programInput").fill("startPoint(340, 820, 0)\nstraight(100)");
   await page.locator("#runProgramButton").click();
   await page.waitForFunction(
-    () => window.AlgoSimulator.defaultSimulator.getState().program.running === false,
+    () => window.__testSimulator.getState().robot.yMm < 722,
     null,
     { timeout: 5_000 }
   );
-  const robot = await page.evaluate(
-    () => window.AlgoSimulator.defaultSimulator.getState().robot
+  await page.waitForFunction(
+    () => window.__testSimulator.getState().program.running === false,
+    null,
+    { timeout: 5_000 }
   );
+  const robot = await page.evaluate(() => window.__testSimulator.getState().robot);
   assert.ok(Math.abs(robot.xMm - 340) < 1);
-  assert.ok(Math.abs(robot.yMm - 720) < 2);
+  assert.ok(Math.abs(robot.yMm - 720) < 2, `unexpected y position: ${robot.yMm}`);
 
   await page.locator("#programInput").fill("startPoint(340, 820, 0)\nstraight(300)");
   await page.locator("#runProgramButton").click();
-  await page.waitForFunction(
-    () => window.AlgoSimulator.defaultSimulator.getState().program.running
-  );
+  await page.waitForFunction(() => window.__testSimulator.getState().program.running);
   await page.locator("#runProgramButton").click();
-  const paused = await page.evaluate(
-    () => window.AlgoSimulator.defaultSimulator.getState()
-  );
+  const paused = await page.evaluate(() => window.__testSimulator.getState());
   assert.equal(paused.program.paused, true);
   await page.waitForTimeout(150);
-  const pausedY = await page.evaluate(
-    () => window.AlgoSimulator.defaultSimulator.getState().robot.yMm
-  );
+  const pausedY = await page.evaluate(() => window.__testSimulator.getState().robot.yMm);
   assert.ok(Math.abs(pausedY - paused.robot.yMm) < 0.1);
   await page.locator("#runProgramButton").click();
   await page.waitForFunction(
-    () => window.AlgoSimulator.defaultSimulator.getState().program.running === false,
+    () => window.__testSimulator.getState().program.running === false,
     null,
     { timeout: 5_000 }
   );
@@ -95,9 +114,7 @@ test("index.html works directly from file:// with legacy storage and current beh
   await page.waitForTimeout(250);
   await page.keyboard.up("ArrowUp");
   assert.ok(
-    await page.evaluate(
-      () => window.AlgoSimulator.defaultSimulator.getState().robot.yMm < 820
-    )
+    await page.evaluate(() => window.__testSimulator.getState().robot.yMm < 820)
   );
   await page.locator("#keyboardToggle").uncheck();
 
@@ -109,18 +126,14 @@ test("index.html works directly from file:// with legacy storage and current beh
   }
   await page.locator("#resetProgramButton").click();
   assert.deepEqual(
-    await page.evaluate(
-      () => window.AlgoSimulator.defaultSimulator.getState().objects
-        .map((object) => object.color)
-    ),
+    await page.evaluate(() => window.__testSimulator.getState().objects.map((object) => object.color)),
     configuredColors
   );
 
   await page.locator('[data-drop-id="1"]').click();
   assert.equal(
     await page.evaluate(
-      () => window.AlgoSimulator.defaultSimulator.getState().objects
-        .find((object) => object.id === "1").dropped
+      () => window.__testSimulator.getState().objects.find((object) => object.id === "1").dropped
     ),
     true
   );
@@ -128,18 +141,21 @@ test("index.html works directly from file:// with legacy storage and current beh
   await page.locator("#programInput").fill("startPoint(340, 200, 0)\nstraight(500)");
   await page.locator("#runProgramButton").click();
   await page.waitForFunction(
-    () => window.AlgoSimulator.defaultSimulator.getState().program.running === false,
+    () => window.__testSimulator.getState().robot.yMm < 150,
+    null,
+    { timeout: 5_000 }
+  );
+  await page.waitForFunction(
+    () => window.__testSimulator.getState().program.running === false,
     null,
     { timeout: 5_000 }
   );
   assert.ok(
-    await page.evaluate(
-      () => window.AlgoSimulator.defaultSimulator.getState().robot.yMm >= 122.9
-    )
+    await page.evaluate(() => window.__testSimulator.getState().robot.yMm >= 122.9)
   );
 
   await page.waitForFunction(
-    () => window.AlgoSimulator.defaultSimulator.getState().sensor.brightness !== null
+    () => window.__testSimulator.getState().sensor.brightness !== null
   );
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(failedRequests, []);

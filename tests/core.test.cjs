@@ -1,32 +1,30 @@
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const vm = require("node:vm");
+const { pathToFileURL } = require("node:url");
 
 const projectRoot = path.resolve(__dirname, "..");
 
-function loadBrowserScripts(files) {
-  const context = vm.createContext({ console });
-  context.globalThis = context;
-  for (const file of files) {
-    const filename = path.join(projectRoot, file);
-    vm.runInContext(fs.readFileSync(filename, "utf8"), context, { filename });
-  }
-  return context.AlgoSimulator;
+function moduleUrl(relativePath) {
+  return pathToFileURL(path.join(projectRoot, relativePath)).href;
 }
 
-function loadCore() {
-  return loadBrowserScripts([
-    "assets/js/core/registry.js",
-    "assets/js/core/math.js",
-    "assets/js/core/model.js",
-    "assets/js/programming.js",
-    "assets/js/adapters/storage.js",
-    "assets/js/adapters/i18n.js",
-    "assets/js/scenarios/wro-2026-junior.js"
-  ]);
-}
+const apiPromise = Promise.all([
+  import(moduleUrl("assets/js/core/registry.js")),
+  import(moduleUrl("assets/js/core/math.js")),
+  import(moduleUrl("assets/js/core/model.js")),
+  import(moduleUrl("assets/js/programming.js")),
+  import(moduleUrl("assets/js/adapters/storage.js")),
+  import(moduleUrl("assets/js/adapters/i18n.js")),
+  import(moduleUrl("assets/js/scenarios/wro-2026-junior.js"))
+]).then(([registry, math, model, programming, storage, i18n]) => ({
+  ...registry,
+  math,
+  model,
+  ...programming,
+  ...storage,
+  ...i18n
+}));
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -39,8 +37,8 @@ function createError(key, values) {
   return error;
 }
 
-test("WRO scenario is registered, validated and deeply frozen", () => {
-  const api = loadCore();
+test("WRO scenario is registered, validated and deeply frozen", async () => {
+  const api = await apiPromise;
   const scenario = api.getScenario("wro-2026-junior");
 
   assert.equal(api.listScenarios().length, 1);
@@ -52,8 +50,8 @@ test("WRO scenario is registered, validated and deeply frozen", () => {
   assert.equal(Object.isFrozen(scenario.robot.sensors[0].palette), true);
 });
 
-test("scenario registry accepts a different robot geometry without changing core", () => {
-  const api = loadCore();
+test("scenario registry accepts a different robot geometry without changing core", async () => {
+  const api = await apiPromise;
   const scenario = clone(api.getScenario("wro-2026-junior"));
   scenario.id = "geometry-fixture";
   scenario.robot.body.widthMm = 180;
@@ -69,8 +67,8 @@ test("scenario registry accepts a different robot geometry without changing core
   assert.equal(fixture.robot.sensors[0].localY, -72);
 });
 
-test("scenario validation rejects duplicate objects and unknown component types", () => {
-  const api = loadCore();
+test("scenario validation rejects duplicate objects and unknown component types", async () => {
+  const api = await apiPromise;
   const duplicate = clone(api.getScenario("wro-2026-junior"));
   duplicate.id = "duplicate-fixture";
   duplicate.objects.instances[1].id = duplicate.objects.instances[0].id;
@@ -82,8 +80,8 @@ test("scenario validation rejects duplicate objects and unknown component types"
   assert.throws(() => api.registerScenario(unknownDrive), /unknown drive type/);
 });
 
-test("core geometry and acceleration preserve simulator math", () => {
-  const { math } = loadCore();
+test("core geometry and acceleration preserve simulator math", async () => {
+  const { math } = await apiPromise;
   assert.deepEqual(
     { ...math.localToWorld({ xMm: 100, yMm: 200, headingRad: 0 }, 10, -20) },
     { xMm: 110, yMm: 180 }
@@ -95,8 +93,8 @@ test("core geometry and acceleration preserve simulator math", () => {
   );
 });
 
-test("model, localization and storage adapters stay scenario-scoped", () => {
-  const api = loadCore();
+test("model, localization and storage adapters stay scenario-scoped", async () => {
+  const api = await apiPromise;
   const scenario = api.getScenario("wro-2026-junior");
   const first = api.model.createSimulationModel(scenario);
   const second = api.model.createSimulationModel(scenario);
@@ -120,8 +118,8 @@ test("model, localization and storage adapters stay scenario-scoped", () => {
   assert.equal(i18n.translate("ui.reset"), "Reset");
 });
 
-test("interpreter parses every built-in WRO program", () => {
-  const api = loadCore();
+test("interpreter parses every built-in WRO program", async () => {
+  const api = await apiPromise;
   const scenario = api.getScenario("wro-2026-junior");
   const colorValues = new Map([
     ["yellow", "1"],
@@ -143,8 +141,8 @@ test("interpreter parses every built-in WRO program", () => {
   }
 });
 
-test("interpreter keeps the language while deriving colors and drop targets from config", () => {
-  const api = loadCore();
+test("interpreter keeps the language while deriving colors and drop targets from config", async () => {
+  const api = await apiPromise;
   const scenario = api.getScenario("wro-2026-junior");
   const interpreter = api.createInterpreter({
     scenario,

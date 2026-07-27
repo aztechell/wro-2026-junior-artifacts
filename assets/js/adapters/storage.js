@@ -1,8 +1,3 @@
-(function initializeScenarioStorage(global) {
-  "use strict";
-
-  const api = global.AlgoSimulator = global.AlgoSimulator || {};
-
   function createScenarioStorage(scenario, storage) {
     const keys = scenario.storage;
     return Object.freeze({
@@ -25,5 +20,4 @@
     });
   }
 
-  api.createScenarioStorage = createScenarioStorage;
-})(globalThis);
+export { createScenarioStorage };

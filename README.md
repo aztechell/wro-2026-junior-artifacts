@@ -1,11 +1,24 @@
 # Configurable Robot Simulator
 
-Static browser simulator for testing WRO-style robot missions and pseudocode.
-The included scenario reproduces the WRO 2026 Junior simulator.
+Static browser simulator for WRO-style robot missions and pseudocode. The
+included scenario reproduces the WRO 2026 Junior simulator.
 
-Open `index.html` directly or publish the repository with GitHub Pages. The
-runtime uses ordinary browser scripts, so a local server and build step are not
-required.
+## Run locally
+
+The application uses native ES modules and must be opened through HTTP:
+
+```powershell
+npm install
+npm run dev
+```
+
+Then open [http://127.0.0.1:4173](http://127.0.0.1:4173). Opening
+`index.html` through `file://` is intentionally unsupported. GitHub Pages and
+other static HTTP hosting work without a build step.
+
+On Windows, double-click `start-simulator.cmd` to start the server and open the
+simulator automatically. Close its console window or press `Ctrl+C` to stop it.
+Node.js is still required, but no terminal command is needed.
 
 ## Architecture
 
@@ -14,51 +27,57 @@ required.
 - `assets/js/programming.js` contains the shared pseudocode parser. The syntax
   is common to all scenarios; colors and valid `drop()` targets come from the
   active scenario.
-- `assets/js/adapters/` contains browser-specific localization and storage
-  adapters.
+- `assets/js/adapters/` contains localization and storage adapters.
 - `assets/js/scenarios/wro-2026-junior.js` is the declarative WRO configuration:
   field, robot, sensors, objects, physics, controls, programs and translations.
-- `assets/js/app.js` connects the selected scenario to Matter.js, Canvas and the
-  existing interface.
+- `assets/js/app.js` exports the scenario-independent simulator factory.
+- `assets/js/bootstrap.js` imports the selected scenario and starts the page.
 
-Scripts are loaded in dependency order near the end of `index.html`: vendor
-assets, core modules, programming and browser adapters, scenario files, then
-the application bootstrap.
+All application modules use native `import` and `export`. `index.html` loads
+Matter.js followed by the single module entrypoint, `bootstrap.js`.
 
-## Browser API
+## Module API
 
-The global `window.AlgoSimulator` namespace exposes:
+Import the pieces needed by the host application:
 
 ```js
-AlgoSimulator.registerScenario(config);
-AlgoSimulator.getScenario("wro-2026-junior");
-AlgoSimulator.listScenarios();
-AlgoSimulator.createSimulator({
+import { createSimulator } from "./assets/js/app.js";
+import {
+  getScenario,
+  listScenarios,
+  registerScenario
+} from "./assets/js/core/registry.js";
+import "./assets/js/scenarios/wro-2026-junior.js";
+
+const simulator = createSimulator({
   scenarioId: "wro-2026-junior",
   root: document,
   matter: window.Matter
 });
 ```
 
-The application registers built-in component types for a rectangular body,
-differential drive, color sensor and numbered artifact. Scenario registration
-validates required data, component types, identifiers and primary dimensions,
-then freezes the configuration.
+The registry includes component types for a rectangular body, differential
+drive, color sensor and numbered artifact. Scenario registration validates
+required data, component types, identifiers and primary dimensions, then
+freezes the configuration.
 
 ## Adding a scenario
 
 1. Copy `assets/js/scenarios/wro-2026-junior.js` and give the configuration a
    unique `id`.
-2. Change only declarative values: field dimensions and assets, robot geometry
-   and start pose, differential-drive parameters, sensor positions, objects,
-   physics, controls, built-in programs and translations.
-3. Add the scenario script before `assets/js/app.js` in `index.html`.
-4. Set the desired scenario ID in the bootstrap. A scenario selector is
-   intentionally not part of the current release.
+2. Change declarative values: field dimensions and images, robot geometry and
+   start pose, differential-drive parameters, sensors, objects, physics,
+   controls, built-in programs and translations.
+3. Import the new scenario from `assets/js/bootstrap.js`.
+4. Pass its ID to `createSimulator()` in the bootstrap.
 
-Use a unique storage namespace for a new scenario. The WRO configuration keeps
+Use a unique storage namespace for each scenario. The WRO configuration keeps
 the original `wro2026Junior*` localStorage keys so existing programs, tabs,
-language and color settings remain compatible.
+language and color settings remain compatible on the same HTTP origin.
+
+`world.backgroundSrc` controls the displayed field, while
+`world.sensorMapSrc` controls the image sampled by color sensors. Both are
+ordinary HTTP-loaded image paths; no generated Base64 mirror is needed.
 
 ## Pseudocode
 
@@ -75,14 +94,10 @@ values, valid object IDs for `drop()` and the color sensor used by
 
 ## Tests
 
-Install the development dependency and run:
-
 ```powershell
-npm install
 npm test
 ```
 
-The suite uses `node:test` for configuration, model, geometry, adapters and the
-interpreter. A Playwright smoke test opens `index.html` through `file://` in the
-locally installed Chrome browser and checks legacy storage, localization,
-movement, object dropping and the color sensor.
+The unit tests import the production ES modules directly. The Playwright smoke
+test starts the same local HTTP server used by `npm run dev` and checks module
+loading, storage, localization, movement, object dropping and the color sensor.

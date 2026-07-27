@@ -1,8 +1,3 @@
-(function initializeSimulatorProgramming(global) {
-  "use strict";
-
-  const api = global.AlgoSimulator = global.AlgoSimulator || {};
-
   function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
@@ -487,5 +482,4 @@
     });
   }
 
-  api.createInterpreter = createInterpreter;
-})(globalThis);
+export { createInterpreter };

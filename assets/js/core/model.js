@@ -1,8 +1,3 @@
-(function initializeSimulationModel(global) {
-  "use strict";
-
-  const api = global.AlgoSimulator = global.AlgoSimulator || {};
-
   function createSimulationModel(scenario) {
     const robot = {
       xMm: scenario.robot.startPose.xMm,
@@ -54,8 +49,7 @@
     object.pendingRelease = false;
   }
 
-  api.model = Object.freeze({
-    createSimulationModel,
-    resetObjectState
-  });
-})(globalThis);
+export {
+  createSimulationModel,
+  resetObjectState
+};

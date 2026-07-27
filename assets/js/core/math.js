@@ -1,8 +1,3 @@
-(function initializeSimulatorMath(global) {
-  "use strict";
-
-  const api = global.AlgoSimulator = global.AlgoSimulator || {};
-
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
   }
@@ -42,11 +37,10 @@
     };
   }
 
-  api.math = Object.freeze({
-    clamp,
-    rampToward,
-    acceleratedStep,
-    normalizeAngle,
-    localToWorld
-  });
-})(globalThis);
+export {
+  acceleratedStep,
+  clamp,
+  localToWorld,
+  normalizeAngle,
+  rampToward
+};

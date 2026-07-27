@@ -1,10 +1,5 @@
-(function initializeAlgoSimulator(global) {
-  "use strict";
-
-  const api = global.AlgoSimulator = global.AlgoSimulator || {};
-  const scenarios = new Map();
-  const componentTypes = new Map();
-  let simulatorFactory = null;
+const scenarios = new Map();
+const componentTypes = new Map();
 
   function assert(condition, message) {
     if (!condition) {
@@ -147,29 +142,14 @@
     return Array.from(scenarios.values());
   }
 
-  function installSimulatorFactory(factory) {
-    assert(typeof factory === "function", "simulator factory must be a function");
-    simulatorFactory = factory;
-  }
+registerComponentType("body", "rectangle", { description: "Rectangular rigid body" });
+registerComponentType("drive", "differential", { description: "Two-wheel differential drive" });
+registerComponentType("sensor", "color", { description: "Image-backed RGB color sensor" });
+registerComponentType("object", "numbered-artifact", { description: "Numbered carried object" });
 
-  function createSimulator(options) {
-    if (!simulatorFactory) {
-      throw new Error("Simulator runtime has not been loaded");
-    }
-    return simulatorFactory(options || {});
-  }
-
-  registerComponentType("body", "rectangle", { description: "Rectangular rigid body" });
-  registerComponentType("drive", "differential", { description: "Two-wheel differential drive" });
-  registerComponentType("sensor", "color", { description: "Image-backed RGB color sensor" });
-  registerComponentType("object", "numbered-artifact", { description: "Numbered carried object" });
-
-  Object.assign(api, {
-    registerComponentType,
-    registerScenario,
-    getScenario,
-    listScenarios,
-    createSimulator,
-    _installSimulatorFactory: installSimulatorFactory
-  });
-})(globalThis);
+export {
+  getScenario,
+  listScenarios,
+  registerComponentType,
+  registerScenario
+};

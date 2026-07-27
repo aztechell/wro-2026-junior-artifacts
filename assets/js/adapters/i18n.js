@@ -1,8 +1,3 @@
-(function initializeSimulatorI18n(global) {
-  "use strict";
-
-  const api = global.AlgoSimulator = global.AlgoSimulator || {};
-
   function createI18n(translations, initialLanguage = "ru") {
     let language = translations[initialLanguage] ? initialLanguage : Object.keys(translations)[0];
 
@@ -36,5 +31,4 @@
     });
   }
 
-  api.createI18n = createI18n;
-})(globalThis);
+export { createI18n };

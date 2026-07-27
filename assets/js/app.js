@@ -1,21 +1,31 @@
-(function initializeSimulatorApplication(global) {
-"use strict";
+import { createI18n } from "./adapters/i18n.js";
+import { createScenarioStorage } from "./adapters/storage.js";
+import {
+  acceleratedStep,
+  clamp,
+  localToWorld as transformLocalToWorld,
+  normalizeAngle,
+  rampToward
+} from "./core/math.js";
+import { createSimulationModel, resetObjectState } from "./core/model.js";
+import { getScenario } from "./core/registry.js";
+import { createInterpreter } from "./programming.js";
 
-    const DEFAULT_SCENARIO_ID = "wro-2026-junior";
-    const api = global.AlgoSimulator;
-    function createSimulator(options = {}) {
-    const scenario = api.getScenario(options.scenarioId || DEFAULT_SCENARIO_ID);
-    const host = options.root || global.document;
+    export function createSimulator(options = {}) {
+    if (!options.scenarioId) {
+      throw new Error("createSimulator requires a scenarioId");
+    }
+    const scenario = getScenario(options.scenarioId);
+    const host = options.root || globalThis.document;
     const document = host.ownerDocument || host;
-    const window = document.defaultView || global;
-    const Matter = options.matter || global.Matter;
+    const window = document.defaultView || globalThis;
+    const Matter = options.matter || globalThis.Matter;
     const Image = window.Image;
     const performance = window.performance;
     const localStorage = options.storage || window.localStorage;
     const requestAnimationFrame = window.requestAnimationFrame.bind(window);
     const queryOne = (selector) => host.querySelector(selector);
     const queryAll = (selector) => host.querySelectorAll(selector);
-    const { acceleratedStep, clamp, normalizeAngle, rampToward } = api.math;
     const WORLD_WIDTH_MM = scenario.world.widthMm;
     const WORLD_HEIGHT_MM = scenario.world.heightMm;
     const START_X_MM = scenario.robot.startPose.xMm;
@@ -63,8 +73,8 @@
       artefactAngularDamping: scenario.objects.physics.angularDamping
     });
     const BUILT_IN_PROGRAMS = scenario.programming.builtInPrograms;
-    const i18n = api.createI18n(scenario.translations);
-    const scenarioStorage = api.createScenarioStorage(scenario, localStorage);
+    const i18n = createI18n(scenario.translations);
+    const scenarioStorage = createScenarioStorage(scenario, localStorage);
 
     function configureScenarioUi() {
       const title = queryOne(".left-panel .panel h1");
@@ -179,7 +189,7 @@
     const resetProgramButton = queryOne("#resetProgramButton");
     const programStatus = queryOne("#programStatus");
     const languageButtons = Array.from(queryAll("[data-language]"));
-    const model = api.model.createSimulationModel(scenario);
+    const model = createSimulationModel(scenario);
 
     const background = new Image();
     background.src = BACKGROUND_SRC;
@@ -767,7 +777,7 @@
       syncColorSelectsFromArtefacts();
       updateProgramColorMapBlock();
       for (const artefact of artefacts) {
-        api.model.resetObjectState(artefact);
+        resetObjectState(artefact);
       }
       resetPhysicsWorld();
       addTrailPoint();
@@ -776,7 +786,7 @@
     }
 
     function localToWorld(localX, localY) {
-      return api.math.localToWorld(robot, localX, localY);
+      return transformLocalToWorld(robot, localX, localY);
     }
 
     function colorSensorWorldPosition(sensor = primaryColorSensor) {
@@ -1186,7 +1196,7 @@
       updateDropButtons();
     }
 
-    const interpreter = api.createInterpreter({
+    const interpreter = createInterpreter({
       scenario,
       getColorValues: buildColorValues,
       errorFactory: localizedError
@@ -1858,7 +1868,7 @@
       updateColorSensorReading(true);
     });
 
-    sensorBackground.src = window.FIELD_SENSOR_IMAGE_DATA_URL || SENSOR_MAP_SRC;
+    sensorBackground.src = SENSOR_MAP_SRC;
 
     for (const button of languageButtons) {
       button.addEventListener("click", () => setLanguage(button.dataset.language));
@@ -1910,7 +1920,3 @@
       }
     });
     }
-
-    api._installSimulatorFactory(createSimulator);
-    api.defaultSimulator = api.createSimulator({ scenarioId: DEFAULT_SCENARIO_ID });
-})(globalThis);
