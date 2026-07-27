@@ -17,9 +17,20 @@ const apiPromise = Promise.all([
   import(moduleUrl("assets/js/adapters/storage.js")),
   import(moduleUrl("assets/js/adapters/i18n.js")),
   import(moduleUrl("assets/js/core/robot-design.js")),
+  import(moduleUrl("assets/js/core/object-geometry.js")),
   import(moduleUrl("assets/js/adapters/robot-profiles.js")),
   import(moduleUrl("assets/js/scenarios/wro-2026-junior.js"))
-]).then(([registry, math, model, programming, storage, i18n, robotDesign, robotProfiles]) => ({
+]).then(([
+  registry,
+  math,
+  model,
+  programming,
+  storage,
+  i18n,
+  robotDesign,
+  objectGeometry,
+  robotProfiles
+]) => ({
   ...registry,
   math,
   model,
@@ -27,6 +38,7 @@ const apiPromise = Promise.all([
   ...storage,
   ...i18n,
   ...robotDesign,
+  ...objectGeometry,
   ...robotProfiles
 }));
 
@@ -53,6 +65,17 @@ test("WRO scenario is registered, validated and deeply frozen", async () => {
   assert.equal(geometry.widthMm, 256);
   assert.equal(geometry.wheelTrackMm, 160);
   assert.equal(geometry.sensors[0].localY, -96);
+  assert.deepEqual(
+    geometry.attachments.map(({ localX, localY }) => [localX, localY]),
+    [[-64, -64], [64, -64], [64, 64], [-64, 64]]
+  );
+  const objectVisual = api.materializeNumberedObjectVisual(scenario.objects.visual);
+  assert.equal(objectVisual.widthMm, 64);
+  assert.equal(objectVisual.heightMm, 48);
+  assert.deepEqual(
+    objectVisual.rectangles.map(({ kind }) => kind),
+    ["left-tab", "right-tab", "body", "panel"]
+  );
   assert.deepEqual(Array.from(scenario.programming.dropTargets), ["1", "2", "3", "4"]);
   assert.equal(Object.isFrozen(scenario), true);
   assert.equal(Object.isFrozen(scenario.robot.editor.sensorTypes.color.palette), true);
@@ -62,14 +85,13 @@ test("robot design changes geometry without changing the scenario", async () => 
   const api = await apiPromise;
   const scenario = api.getScenario("wro-2026-junior");
   const design = clone(scenario.robot.defaultDesign);
-  design.bodyCells = [[10, 10], [12, 10]];
   design.wheels[0].nodeColumn = 8;
   design.wheels[1].nodeColumn = 24;
-  design.sensors[0].nodeRow = 8;
+  design.sensors[0].nodeRow = 12;
   const geometry = api.materializeRobotDesign(scenario, design);
-  assert.equal(geometry.bodyRectangles.length, 2);
+  assert.equal(geometry.bodyRectangles.length, 1);
   assert.equal(geometry.wheelTrackMm, 128);
-  assert.equal(geometry.sensors[0].localY, -64);
+  assert.equal(geometry.sensors[0].localY, -32);
 });
 
 test("robot design validation covers grid, components and primary sensor", async () => {
@@ -99,6 +121,29 @@ test("robot design validation covers grid, components and primary sensor", async
   noPrimary.primarySensorId = "missing";
   assert.throws(() => api.normalizeRobotDesign(scenario, noPrimary), /Primary sensor/);
 
+  const oldProfile = clone(base);
+  delete oldProfile.attachments;
+  assert.equal(api.normalizeRobotDesign(scenario, oldProfile).attachments.length, 4);
+
+  const unsupportedObject = clone(base);
+  unsupportedObject.bodyCells = unsupportedObject.bodyCells.filter(
+    ([column, row]) => column < 20 || row < 20
+  );
+  assert.throws(() => api.normalizeRobotDesign(scenario, unsupportedObject), /attached above a body cell/);
+
+  const duplicateAttachment = clone(base);
+  duplicateAttachment.attachments[1].objectId = "1";
+  assert.throws(() => api.normalizeRobotDesign(scenario, duplicateAttachment), /Duplicate attachment/);
+
+  const attachmentOverlap = clone(base);
+  attachmentOverlap.attachments[0].nodeColumn = 16;
+  attachmentOverlap.attachments[0].nodeRow = 4;
+  assert.throws(() => api.normalizeRobotDesign(scenario, attachmentOverlap), /overlap/);
+
+  const missingAttachment = clone(base);
+  missingAttachment.attachments.pop();
+  assert.throws(() => api.normalizeRobotDesign(scenario, missingAttachment), /Every scenario object/);
+
   const outside = clone(base);
   outside.sensors[0].nodeColumn = 0;
   assert.throws(() => api.normalizeRobotDesign(scenario, outside), /outside the robot grid/);
@@ -113,8 +158,7 @@ test("grid geometry preserves holes and rigid islands while merging full areas",
     [0, 1],
     [10, 10]
   ];
-  const normalized = api.normalizeRobotDesign(scenario, design);
-  const rectangles = api.mergeBodyCells(scenario, normalized);
+  const rectangles = api.mergeBodyCells(scenario, design);
   assert.deepEqual(
     rectangles.map(({ width, height }) => [width, height]).sort((a, b) => a[0] - b[0]),
     [[8, 8], [8, 8], [16, 8]]
@@ -127,7 +171,7 @@ test("grid geometry preserves holes and rigid islands while merging full areas",
       if ((column + row) % 2 === 0) checkerboard.bodyCells.push([column, row]);
     }
   }
-  assert.equal(api.mergeBodyCells(scenario, api.normalizeRobotDesign(scenario, checkerboard)).length, 512);
+  assert.equal(api.mergeBodyCells(scenario, checkerboard).length, 512);
 });
 
 test("robot profile store keeps drafts and imports validated snapshots", async () => {

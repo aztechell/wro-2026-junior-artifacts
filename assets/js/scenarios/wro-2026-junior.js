@@ -683,7 +683,13 @@ moveToLine(10)`
         sensors: [
           { id: "front-color", type: "color", nodeColumn: 16, nodeRow: 4 }
         ],
-        primarySensorId: "front-color"
+        primarySensorId: "front-color",
+        attachments: [
+          { objectId: "1", nodeColumn: 8, nodeRow: 8 },
+          { objectId: "2", nodeColumn: 24, nodeRow: 8 },
+          { objectId: "3", nodeColumn: 24, nodeRow: 24 },
+          { objectId: "4", nodeColumn: 8, nodeRow: 24 }
+        ]
       }
     },
     physics: {

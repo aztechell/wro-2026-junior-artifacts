@@ -61,7 +61,8 @@ const simulator = createSimulator({
 
 The registry includes component types for a rectangular body, differential
 drive, grid body, color sensor and numbered artifact. Grid robot designs use
-8 mm cells, two wheels on one horizontal axle and one or more color sensors.
+8 mm cells, two wheels on one horizontal axle, one or more color sensors and
+one attachment point for every scenario object.
 Scenario registration validates required data, component types, identifiers
 and primary dimensions, then freezes the configuration.
 
@@ -69,8 +70,11 @@ and primary dimensions, then freezes the configuration.
 
 Open [http://127.0.0.1:4173/robot-editor.html](http://127.0.0.1:4173/robot-editor.html)
 or use **Robot editor** in the simulator. The editor can paint or erase body
-cells, place wheels and sensors, select the primary line sensor and manage
-multiple named profiles.
+cells, place wheels and sensors, move the initial attachment points of numbered
+objects, select the primary line sensor and manage multiple named profiles.
+An object attachment must remain supported by a body cell and cannot overlap
+another component. Double-clicking an object restores its scenario-default
+position.
 
 Drafts autosave but do not change the simulator. Use **Import robot** in the
 simulator to store and activate a validated snapshot. **Default robot** clears

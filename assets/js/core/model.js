@@ -1,10 +1,14 @@
-  function createSimulationModel(scenario, robotDefinition = scenario.robot) {
+  function createSimulationModel(
+    scenario,
+    robotDefinition = scenario.robot,
+    objectDefinitions = scenario.objects.instances
+  ) {
     const robot = {
       xMm: scenario.robot.startPose.xMm,
       yMm: scenario.robot.startPose.yMm,
       headingRad: scenario.robot.startPose.headingDeg * Math.PI / 180
     };
-    const objects = scenario.objects.instances.map((object) => ({
+    const objects = objectDefinitions.map((object) => ({
       ...object,
       dropped: false,
       xMm: null,

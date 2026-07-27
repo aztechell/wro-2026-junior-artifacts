@@ -4,6 +4,7 @@ import {
   materializeRobotDesign,
   tryNormalizeRobotDesign
 } from "./core/robot-design.js";
+import { materializeNumberedObjectVisual } from "./core/object-geometry.js";
 import { getScenario } from "./core/registry.js";
 import "./scenarios/wro-2026-junior.js";
 
@@ -12,6 +13,7 @@ const store = createRobotProfileStore(scenario, window.localStorage);
 const grid = scenario.robot.editor.grid;
 const canvas = document.querySelector("#robotGrid");
 const ctx = canvas.getContext("2d");
+const objectVisual = materializeNumberedObjectVisual(scenario.objects.visual);
 const margin = 32;
 const gridPixels = canvas.width - margin * 2;
 const cellPixels = gridPixels / grid.columns;
@@ -20,10 +22,10 @@ const text = {
     title: "Редактор робота", back: "Вернуться в симулятор", useInSimulator: "Импортировать в симулятор", profiles: "Профили",
     profileName: "Название", duplicate: "Дублировать", delete: "Удалить",
     tools: "Инструменты", bodyTool: "Корпус", eraserTool: "Ластик",
-    wheelTool: "Колесо", sensorTool: "Датчик",
-    toolHint: "Корпус рисуется перетаскиванием. Колёса и датчики можно двигать; двойной клик удаляет любой элемент.",
+    wheelTool: "Колесо", sensorTool: "Датчик", objectTool: "Кубик",
+    toolHint: "Корпус рисуется перетаскиванием. Компоненты и кубики можно двигать; двойной клик удаляет элемент или возвращает кубик.",
     resetTemplate: "Вернуть шаблон", parameters: "Параметры", cells: "Клетки",
-    dimensions: "Габариты", wheelTrack: "Колёсная база", sensors: "Датчики",
+    dimensions: "Габариты", wheelTrack: "Колёсная база", sensors: "Датчики", objects: "Кубики",
     sensorHeading: "Цветовые датчики", validation: "Проверка",
     valid: "Конструкция готова к импорту", saved: "Сохранено", remove: "Удалить",
     primary: "Основной", lastProfile: "Последний профиль удалить нельзя",
@@ -33,10 +35,10 @@ const text = {
     title: "Robot editor", back: "Back to simulator", useInSimulator: "Import into simulator", profiles: "Profiles",
     profileName: "Name", duplicate: "Duplicate", delete: "Delete",
     tools: "Tools", bodyTool: "Body", eraserTool: "Eraser",
-    wheelTool: "Wheel", sensorTool: "Sensor",
-    toolHint: "Drag to paint the body. Wheels and sensors are draggable; double-click removes any item.",
+    wheelTool: "Wheel", sensorTool: "Sensor", objectTool: "Cube",
+    toolHint: "Drag to paint the body. Components and cubes are draggable; double-click removes an item or resets a cube.",
     resetTemplate: "Restore template", parameters: "Parameters", cells: "Cells",
-    dimensions: "Dimensions", wheelTrack: "Wheel track", sensors: "Sensors",
+    dimensions: "Dimensions", wheelTrack: "Wheel track", sensors: "Sensors", objects: "Cubes",
     sensorHeading: "Color sensors", validation: "Validation",
     valid: "Design is ready to import", saved: "Saved", remove: "Remove",
     primary: "Primary", lastProfile: "The last profile cannot be deleted",
@@ -51,6 +53,7 @@ let tool = "body";
 let drawing = false;
 let draggedWheelId = null;
 let draggedSensorId = null;
+let draggedObjectId = null;
 let sensorSequence = 1;
 let transientMessage = "";
 
@@ -135,12 +138,27 @@ function componentAt(point) {
       y: margin + sensor.nodeRow * cellPixels,
       width: 24 * scale,
       height: 24 * scale
+    })),
+    ...selected.design.attachments.map((attachment) => ({
+      kind: "attachment", item: attachment,
+      x: margin + attachment.nodeColumn * cellPixels,
+      y: margin + attachment.nodeRow * cellPixels,
+      width: objectVisual.widthMm * scale,
+      height: objectVisual.heightMm * scale
     }))
   ];
   return components.reverse().find((component) => (
     Math.abs(point.x - component.x) <= component.width / 2
     && Math.abs(point.y - component.y) <= component.height / 2
   ));
+}
+
+function resetAttachment(design, objectId) {
+  const standard = scenario.robot.defaultDesign.attachments.find(
+    (attachment) => attachment.objectId === objectId
+  );
+  const attachment = design.attachments.find((item) => item.objectId === objectId);
+  if (standard && attachment) Object.assign(attachment, clone(standard));
 }
 
 function editAt(event) {
@@ -158,6 +176,8 @@ function editAt(event) {
     } else if (component?.kind === "sensor") {
       design.sensors = design.sensors.filter((sensor) => sensor.id !== component.item.id);
       if (design.primarySensorId === component.item.id) design.primarySensorId = design.sensors[0]?.id || "";
+    } else if (component?.kind === "attachment") {
+      resetAttachment(design, component.item.objectId);
     } else {
       const cell = cellAt(point);
       if (!cell) return;
@@ -192,6 +212,8 @@ function editAt(event) {
     } while (design.sensors.some((sensor) => sensor.id === id));
     design.sensors.push({ id, type: "color", ...node });
     if (!design.primarySensorId) design.primarySensorId = id;
+  } else if (tool === "object") {
+    return;
   }
   setDesign(design);
 }
@@ -227,6 +249,18 @@ function moveSensorAt(event) {
   setDesign(design);
 }
 
+function moveObjectAt(event) {
+  if (!draggedObjectId) return;
+  const node = nodeAt(canvasPoint(event));
+  if (!node) return;
+  const design = clone(selected.design);
+  const attachment = design.attachments.find((item) => item.objectId === draggedObjectId);
+  if (!attachment) return;
+  attachment.nodeColumn = Math.max(3, Math.min(29, node.nodeColumn));
+  attachment.nodeRow = Math.max(3, Math.min(29, node.nodeRow));
+  setDesign(design);
+}
+
 function removeAt(event) {
   const point = canvasPoint(event);
   const design = clone(selected.design);
@@ -238,6 +272,8 @@ function removeAt(event) {
     if (design.primarySensorId === component.item.id) {
       design.primarySensorId = design.sensors[0]?.id || "";
     }
+  } else if (component?.kind === "attachment") {
+    resetAttachment(design, component.item.objectId);
   } else {
     const cell = cellAt(point);
     if (!cell) return;
@@ -247,6 +283,7 @@ function removeAt(event) {
   }
   draggedWheelId = null;
   draggedSensorId = null;
+  draggedObjectId = null;
   drawing = false;
   setDesign(design);
 }
@@ -343,6 +380,42 @@ function draw() {
     ctx.fillStyle = "#17211b";
     ctx.beginPath(); ctx.arc(position.x, position.y, 5 * scale, 0, Math.PI * 2); ctx.fill();
   }
+  for (const attachment of selected.design.attachments) {
+    const position = {
+      x: margin + attachment.nodeColumn * cellPixels,
+      y: margin + attachment.nodeRow * cellPixels
+    };
+    const objectIndex = scenario.objects.instances.findIndex(
+      (object) => String(object.id) === attachment.objectId
+    );
+    const color = scenario.objects.palette[objectIndex % scenario.objects.palette.length];
+    ctx.save();
+    ctx.translate(position.x, position.y);
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = color.color;
+    ctx.strokeStyle = "rgba(17, 24, 39, 0.8)";
+    ctx.lineWidth = 2 * scale;
+    for (const rectangle of objectVisual.rectangles) {
+      ctx.fillRect(
+        (rectangle.x - rectangle.width / 2) * scale,
+        (rectangle.y - rectangle.height / 2) * scale,
+        rectangle.width * scale,
+        rectangle.height * scale
+      );
+      ctx.strokeRect(
+        (rectangle.x - rectangle.width / 2) * scale,
+        (rectangle.y - rectangle.height / 2) * scale,
+        rectangle.width * scale,
+        rectangle.height * scale
+      );
+    }
+    ctx.fillStyle = color.textColor;
+    ctx.font = `bold ${24 * scale}px Arial, Helvetica, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(attachment.objectId, 0, scale);
+    ctx.restore();
+  }
   ctx.strokeStyle = "#dc2626"; ctx.fillStyle = "#dc2626"; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(origin.x, origin.y - 42); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(origin.x, origin.y - 48); ctx.lineTo(origin.x - 7, origin.y - 36);
@@ -404,6 +477,7 @@ function render() {
   document.querySelector("#profileName").value = selected.name;
   document.querySelector("#cellCount").textContent = selected.design.bodyCells.length;
   document.querySelector("#sensorCount").textContent = selected.design.sensors.length;
+  document.querySelector("#objectCount").textContent = selected.design.attachments.length;
   const validation = tryNormalizeRobotDesign(scenario, selected.design);
   const validationState = document.querySelector("#validationState");
   validationState.className = `validation-state ${validation.design ? "valid" : "invalid"}`;
@@ -437,22 +511,32 @@ canvas.addEventListener("pointerdown", (event) => {
       return;
     }
   }
+  if (tool === "object") {
+    const component = componentAt(canvasPoint(event));
+    if (component?.kind === "attachment") {
+      draggedObjectId = component.item.objectId;
+      return;
+    }
+  }
   editAt(event);
 });
 canvas.addEventListener("pointermove", (event) => {
   if (drawing && draggedWheelId) moveWheelAt(event);
   else if (drawing && draggedSensorId) moveSensorAt(event);
+  else if (drawing && draggedObjectId) moveObjectAt(event);
   else if (drawing && (tool === "body" || tool === "erase")) editAt(event);
 });
 canvas.addEventListener("pointerup", () => {
   drawing = false;
   draggedWheelId = null;
   draggedSensorId = null;
+  draggedObjectId = null;
 });
 canvas.addEventListener("pointercancel", () => {
   drawing = false;
   draggedWheelId = null;
   draggedSensorId = null;
+  draggedObjectId = null;
 });
 canvas.addEventListener("dblclick", (event) => {
   event.preventDefault();

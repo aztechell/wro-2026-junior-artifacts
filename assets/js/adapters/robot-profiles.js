@@ -17,6 +17,14 @@ function createRobotProfileStore(scenario, storage) {
   const profilesKey = scenario.storage.robotProfiles;
   const activeKey = scenario.storage.activeRobotDesign;
 
+  function withDesignDefaults(design) {
+    const next = clone(design);
+    if (!Array.isArray(next.attachments)) {
+      next.attachments = clone(scenario.robot.defaultDesign.attachments || []);
+    }
+    return next;
+  }
+
   function upgradeLegacyDefault(design) {
     if (
       !design
@@ -63,7 +71,7 @@ function createRobotProfileStore(scenario, storage) {
         id: String(profile.id || createId()),
         name: String(profile.name || "Robot"),
         updatedAt: String(profile.updatedAt || new Date().toISOString()),
-        design: clone(upgradeLegacyDefault(profile.design))
+        design: withDesignDefaults(upgradeLegacyDefault(profile.design))
       }));
       const selectedProfileId = profiles.some((profile) => profile.id === parsed.selectedProfileId)
         ? parsed.selectedProfileId

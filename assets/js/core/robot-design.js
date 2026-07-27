@@ -1,3 +1,5 @@
+import { materializeNumberedObjectVisual } from "./object-geometry.js";
+
 const ROBOT_DESIGN_SCHEMA_VERSION = 1;
 
 class RobotDesignError extends Error {
@@ -41,6 +43,17 @@ function componentRectangle(scenario, component) {
       y,
       width: scenario.robot.drive.wheelWidthMm,
       height: scenario.robot.drive.wheelDiameterMm
+    };
+  }
+  if (component.type === "attachment") {
+    const visual = materializeNumberedObjectVisual(scenario.objects.visual);
+    return {
+      id: component.id,
+      kind: "attachment",
+      x,
+      y,
+      width: visual.widthMm,
+      height: visual.heightMm
     };
   }
   const sensor = scenario.robot.editor.sensorTypes[component.type];
@@ -144,9 +157,51 @@ function normalizeRobotDesign(scenario, source) {
     fail("primary-sensor", "Primary sensor must reference an existing sensor");
   }
 
+  if (!Array.isArray(design.attachments)) {
+    design.attachments = clone(scenario.robot.defaultDesign.attachments || []);
+  }
+  const expectedObjectIds = new Set(scenario.objects.instances.map((object) => String(object.id)));
+  const attachmentIds = new Set();
+  design.attachments = design.attachments.map((attachment) => {
+    const normalized = {
+      objectId: String(attachment.objectId || ""),
+      nodeColumn: Number(attachment.nodeColumn),
+      nodeRow: Number(attachment.nodeRow)
+    };
+    if (!expectedObjectIds.has(normalized.objectId)) {
+      fail("attachment-id", `Attachment references unknown object "${normalized.objectId}"`);
+    }
+    if (attachmentIds.has(normalized.objectId)) {
+      fail("attachment-duplicate", `Duplicate attachment for object "${normalized.objectId}"`);
+    }
+    attachmentIds.add(normalized.objectId);
+    if (!Number.isInteger(normalized.nodeColumn) || !Number.isInteger(normalized.nodeRow)) {
+      fail("attachment-position", "Attachment positions must use grid nodes");
+    }
+    const adjacentCells = [
+      [normalized.nodeColumn - 1, normalized.nodeRow - 1],
+      [normalized.nodeColumn, normalized.nodeRow - 1],
+      [normalized.nodeColumn - 1, normalized.nodeRow],
+      [normalized.nodeColumn, normalized.nodeRow]
+    ];
+    if (!adjacentCells.some(([column, row]) => seenCells.has(`${column}:${row}`))) {
+      fail("attachment-support", `Object "${normalized.objectId}" must be attached above a body cell`);
+    }
+    return normalized;
+  }).sort((a, b) => a.objectId.localeCompare(b.objectId));
+  if (attachmentIds.size !== expectedObjectIds.size) {
+    fail("attachment-count", "Every scenario object must have one attachment");
+  }
+
   const components = [
     ...design.wheels.map((wheel) => ({ ...wheel, type: "wheel" })),
-    ...design.sensors
+    ...design.sensors,
+    ...design.attachments.map((attachment) => ({
+      id: attachment.objectId,
+      type: "attachment",
+      nodeColumn: attachment.nodeColumn,
+      nodeRow: attachment.nodeRow
+    }))
   ].map((component) => componentRectangle(scenario, component));
   const halfWidth = spec.columns * spec.cellSizeMm / 2;
   const halfHeight = spec.rows * spec.cellSizeMm / 2;
@@ -244,6 +299,22 @@ function materializeRobotDesign(scenario, source) {
       localY: rectangle.y
     };
   });
+  const attachments = design.attachments.map((attachment) => {
+    const rectangle = componentRectangle(scenario, {
+      id: attachment.objectId,
+      type: "attachment",
+      nodeColumn: attachment.nodeColumn,
+      nodeRow: attachment.nodeRow
+    });
+    return {
+      ...attachment,
+      localX: rectangle.x,
+      localY: rectangle.y,
+      sizeMm: scenario.objects.visual.sizeMm,
+      widthMm: rectangle.width,
+      heightMm: rectangle.height
+    };
+  });
   const parts = [
     ...mergeBodyCells(scenario, design).map((part) => ({ ...part, kind: "body" })),
     ...wheels.map((wheel) => ({
@@ -267,6 +338,7 @@ function materializeRobotDesign(scenario, source) {
     bodyRectangles: mergeBodyCells(scenario, design),
     wheels,
     sensors,
+    attachments,
     primarySensorId: design.primarySensorId,
     wheelTrackMm: Math.abs(wheels[1].localX - wheels[0].localX),
     axleLocalX: (wheels[0].localX + wheels[1].localX) / 2,

@@ -199,16 +199,16 @@ test("robot editor saves profiles and simulator imports an explicit snapshot", {
   await page.mouse.down();
   await page.mouse.move(
     canvasBox.x + (32 + 8 * 20) * scale,
-    canvasBox.y + (32 + 18 * 20) * scale,
+    canvasBox.y + (32 + 16 * 20) * scale,
     { steps: 4 }
   );
   await page.mouse.up();
   assert.equal(await page.locator("#wheelTrack").textContent(), "128 mm");
   await canvas.dblclick({
-    position: { x: (32 + 24 * 20) * scale, y: (32 + 18 * 20) * scale }
+    position: { x: (32 + 24 * 20) * scale, y: (32 + 16 * 20) * scale }
   });
   assert.match(await page.locator("#validationState").textContent(), /exactly two wheels/);
-  await canvas.click({ position: { x: (32 + 24 * 20) * scale, y: (32 + 18 * 20) * scale } });
+  await canvas.click({ position: { x: (32 + 24 * 20) * scale, y: (32 + 16 * 20) * scale } });
   assert.equal(await page.locator("#wheelTrack").textContent(), "128 mm");
 
   await page.locator('[data-tool="sensor"]').click();
@@ -220,7 +220,7 @@ test("robot editor saves profiles and simulator imports an explicit snapshot", {
   );
   await page.mouse.down();
   await page.mouse.move(
-    canvasBox.x + (32 + 20 * 20) * scale,
+    canvasBox.x + (32 + 18 * 20) * scale,
     canvasBox.y + (32 + 26 * 20) * scale,
     { steps: 4 }
   );
@@ -231,6 +231,35 @@ test("robot editor saves profiles and simulator imports an explicit snapshot", {
   assert.equal(await page.locator("#sensorCount").textContent(), "1");
   assert.equal(await page.locator("#validationState").getAttribute("class"), "validation-state valid");
   assert.equal(await page.locator('#sensorList input[type="radio"]').count(), 1);
+
+  await page.locator('[data-tool="object"]').click();
+  await page.mouse.move(
+    canvasBox.x + (32 + 8 * 20) * scale,
+    canvasBox.y + (32 + 8 * 20) * scale
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    canvasBox.x + (32 + 6 * 20) * scale,
+    canvasBox.y + (32 + 8 * 20) * scale,
+    { steps: 4 }
+  );
+  await page.mouse.up();
+  await canvas.dblclick({
+    position: { x: (32 + 6 * 20) * scale, y: (32 + 8 * 20) * scale }
+  });
+  await page.mouse.move(
+    canvasBox.x + (32 + 8 * 20) * scale,
+    canvasBox.y + (32 + 8 * 20) * scale
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    canvasBox.x + (32 + 6 * 20) * scale,
+    canvasBox.y + (32 + 8 * 20) * scale,
+    { steps: 4 }
+  );
+  await page.mouse.up();
+  assert.equal(await page.locator("#objectCount").textContent(), "4");
+  assert.equal(await page.locator("#validationState").getAttribute("class"), "validation-state valid");
 
   await page.reload();
   await page.locator("#profileList .profile-item").first().waitFor();
@@ -252,7 +281,16 @@ test("robot editor saves profiles and simulator imports an explicit snapshot", {
   assert.equal(importedState.robot.wheelTrackMm, 128);
   assert.ok(
     importedState.robot.design.sensors.some(
-      (sensor) => sensor.nodeColumn === 20 && sensor.nodeRow === 26
+      (sensor) => sensor.nodeColumn === 18 && sensor.nodeRow === 26
+    )
+  );
+  assert.ok(
+    importedState.robot.design.attachments.some(
+      (attachment) => (
+        attachment.objectId === "1"
+        && attachment.nodeColumn === 6
+        && attachment.nodeRow === 8
+      )
     )
   );
   assert.equal(Object.keys(importedState.sensors).length, 1);

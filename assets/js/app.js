@@ -8,6 +8,7 @@ import {
   rampToward
 } from "./core/math.js";
 import { createSimulationModel, resetObjectState } from "./core/model.js";
+import { materializeNumberedObjectVisual } from "./core/object-geometry.js";
 import { getScenario } from "./core/registry.js";
 import { materializeRobotDesign } from "./core/robot-design.js";
 import { createInterpreter } from "./programming.js";
@@ -44,6 +45,11 @@ import { createInterpreter } from "./programming.js";
           }
         ],
         sensors: scenario.robot.sensors,
+        attachments: scenario.objects.instances.map((object) => ({
+          objectId: object.id,
+          localX: object.localX,
+          localY: object.localY
+        })),
         primarySensorId: scenario.programming.lineSensorId,
         wheelTrackMm: scenario.robot.drive.wheelTrackMm,
         axleLocalX: 0,
@@ -77,11 +83,8 @@ import { createInterpreter } from "./programming.js";
     const HALF_WHEEL_TRACK_MM = WHEEL_TRACK_MM / 2;
     const WHEEL_DIAMETER_MM = scenario.robot.drive.wheelDiameterMm;
     const WHEEL_WIDTH_MM = scenario.robot.drive.wheelWidthMm;
-    const ARTIFACT_SIZE_MM = scenario.objects.visual.sizeMm;
-    const HALF_ARTIFACT_MM = ARTIFACT_SIZE_MM / 2;
-    const ARTIFACT_CORE_SIZE_MM = scenario.objects.visual.coreSizeMm;
-    const HALF_ARTIFACT_CORE_MM = ARTIFACT_CORE_SIZE_MM / 2;
-    const ARTIFACT_SIDE_TAB_WIDTH_MM = scenario.objects.visual.sideTabWidthMm;
+    const artifactVisual = materializeNumberedObjectVisual(scenario.objects.visual);
+    const ARTIFACT_SIZE_MM = artifactVisual.bodySizeMm;
     const driveWheels = robotGeometry.wheels;
     const colorSensors = robotGeometry.sensors.filter((sensor) => sensor.type === "color");
     const robotBodyCellSet = new Set(
@@ -227,7 +230,17 @@ import { createInterpreter } from "./programming.js";
     const resetProgramButton = queryOne("#resetProgramButton");
     const programStatus = queryOne("#programStatus");
     const languageButtons = Array.from(queryAll("[data-language]"));
-    const model = createSimulationModel(scenario, robotDefinition);
+    const objectDefinitions = scenario.objects.instances.map((object) => {
+      const attachment = robotGeometry.attachments.find(
+        (candidate) => candidate.objectId === String(object.id)
+      );
+      return {
+        ...object,
+        localX: attachment.localX,
+        localY: attachment.localY
+      };
+    });
+    const model = createSimulationModel(scenario, robotDefinition, objectDefinitions);
 
     const background = new Image();
     background.src = BACKGROUND_SRC;
@@ -1610,56 +1623,20 @@ import { createInterpreter } from "./programming.js";
       ctx.strokeStyle = "rgba(17, 24, 39, 0.8)";
       ctx.lineWidth = 2;
 
-      // Draw the configured body, number panel, and side tabs.
-      ctx.fillRect(
-        -HALF_ARTIFACT_MM - ARTIFACT_SIDE_TAB_WIDTH_MM,
-        -HALF_ARTIFACT_CORE_MM,
-        ARTIFACT_SIDE_TAB_WIDTH_MM,
-        ARTIFACT_CORE_SIZE_MM
-      );
-      ctx.strokeRect(
-        -HALF_ARTIFACT_MM - ARTIFACT_SIDE_TAB_WIDTH_MM,
-        -HALF_ARTIFACT_CORE_MM,
-        ARTIFACT_SIDE_TAB_WIDTH_MM,
-        ARTIFACT_CORE_SIZE_MM
-      );
-      ctx.fillRect(
-        HALF_ARTIFACT_MM,
-        -HALF_ARTIFACT_CORE_MM,
-        ARTIFACT_SIDE_TAB_WIDTH_MM,
-        ARTIFACT_CORE_SIZE_MM
-      );
-      ctx.strokeRect(
-        HALF_ARTIFACT_MM,
-        -HALF_ARTIFACT_CORE_MM,
-        ARTIFACT_SIDE_TAB_WIDTH_MM,
-        ARTIFACT_CORE_SIZE_MM
-      );
-      ctx.fillRect(
-        -HALF_ARTIFACT_MM,
-        -HALF_ARTIFACT_MM,
-        ARTIFACT_SIZE_MM,
-        ARTIFACT_SIZE_MM
-      );
-      ctx.strokeRect(
-        -HALF_ARTIFACT_MM,
-        -HALF_ARTIFACT_MM,
-        ARTIFACT_SIZE_MM,
-        ARTIFACT_SIZE_MM
-      );
-      ctx.fillStyle = artefact.color;
-      ctx.fillRect(
-        -HALF_ARTIFACT_CORE_MM,
-        -HALF_ARTIFACT_CORE_MM,
-        ARTIFACT_CORE_SIZE_MM,
-        ARTIFACT_CORE_SIZE_MM
-      );
-      ctx.strokeRect(
-        -HALF_ARTIFACT_CORE_MM,
-        -HALF_ARTIFACT_CORE_MM,
-        ARTIFACT_CORE_SIZE_MM,
-        ARTIFACT_CORE_SIZE_MM
-      );
+      for (const rectangle of artifactVisual.rectangles) {
+        ctx.fillRect(
+          rectangle.x - rectangle.width / 2,
+          rectangle.y - rectangle.height / 2,
+          rectangle.width,
+          rectangle.height
+        );
+        ctx.strokeRect(
+          rectangle.x - rectangle.width / 2,
+          rectangle.y - rectangle.height / 2,
+          rectangle.width,
+          rectangle.height
+        );
+      }
       ctx.fillStyle = artefact.textColor;
       ctx.font = "bold 24px Arial, Helvetica, sans-serif";
       ctx.textAlign = "center";
