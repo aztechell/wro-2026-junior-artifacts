@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Редактор робота</title>
+  <link rel="stylesheet" href="assets/css/robot-editor.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 data-text="title">Редактор робота</h1>
+    <div class="topbar-actions">
+      <div class="language-switch" aria-label="Language">
+        <button type="button" data-language="ru">RU</button>
+        <button type="button" data-language="en">EN</button>
+      </div>
+      <button id="useInSimulator" class="primary-action" type="button" data-text="useInSimulator">Импортировать в симулятор</button>
+      <a class="button secondary" href="index.html" data-text="back">Вернуться в симулятор</a>
+    </div>
+  </header>
+
+  <main class="editor-layout">
+    <aside class="sidebar">
+      <section class="card">
+        <div class="section-heading">
+          <h2 data-text="profiles">Профили</h2>
+          <button id="newProfile" class="icon-button" type="button" title="Новый профиль">+</button>
+        </div>
+        <div id="profileList" class="profile-list"></div>
+        <label class="field">
+          <span data-text="profileName">Название</span>
+          <input id="profileName" maxlength="50">
+        </label>
+        <div class="button-row">
+          <button id="duplicateProfile" type="button" data-text="duplicate">Дублировать</button>
+          <button id="deleteProfile" class="danger" type="button" data-text="delete">Удалить</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 data-text="tools">Инструменты</h2>
+        <div class="tool-grid" role="toolbar">
+          <button type="button" data-tool="body" class="active" data-text="bodyTool">Корпус</button>
+          <button type="button" data-tool="erase" data-text="eraserTool">Ластик</button>
+          <button type="button" data-tool="wheel" data-text="wheelTool">Колесо</button>
+          <button type="button" data-tool="sensor" data-text="sensorTool">Датчик</button>
+        </div>
+        <p class="hint" data-text="toolHint">Корпус рисуется перетаскиванием. Компоненты привязываются к узлам.</p>
+        <button id="resetDesign" class="secondary full" type="button" data-text="resetTemplate">Вернуть шаблон</button>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="canvas-card">
+        <div class="canvas-wrap">
+          <canvas id="robotGrid" width="704" height="704" aria-label="Сетка конструкции робота"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <aside class="sidebar details">
+      <section class="card">
+        <h2 data-text="parameters">Параметры</h2>
+        <dl class="metrics">
+          <div><dt data-text="cells">Клетки</dt><dd id="cellCount">0</dd></div>
+          <div><dt data-text="dimensions">Габариты</dt><dd id="dimensions">—</dd></div>
+          <div><dt data-text="wheelTrack">Колёсная база</dt><dd id="wheelTrack">—</dd></div>
+          <div><dt data-text="sensors">Датчики</dt><dd id="sensorCount">0</dd></div>
+        </dl>
+      </section>
+
+      <section class="card">
+        <h2 data-text="sensorHeading">Цветовые датчики</h2>
+        <div id="sensorList" class="sensor-list"></div>
+      </section>
+
+      <section class="card validation-card">
+        <h2 data-text="validation">Проверка</h2>
+        <div id="validationState" class="validation-state"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module" src="assets/js/robot-editor.js"></script>
+</body>
+</html>

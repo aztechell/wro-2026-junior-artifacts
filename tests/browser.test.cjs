@@ -160,3 +160,108 @@ test("index.html works over HTTP with ES modules and current behavior", {
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(failedRequests, []);
 });
+
+test("robot editor saves profiles and simulator imports an explicit snapshot", {
+  timeout: 30_000
+}, async (t) => {
+  const { createStaticServer } = await import(serverModuleUrl);
+  const server = createStaticServer(projectRoot);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const { port } = server.address();
+  const projectUrl = `http://127.0.0.1:${port}/`;
+
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const pageErrors = [];
+  const failedRequests = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("requestfailed", (request) => failedRequests.push(request.url()));
+
+  await page.goto(`${projectUrl}robot-editor.html`);
+  await page.locator("#profileList .profile-item").first().waitFor();
+  assert.equal(await page.locator("#cellCount").textContent(), "1024");
+  assert.equal(await page.locator("#wheelTrack").textContent(), "160 mm");
+  await page.locator("#profileName").fill("Custom Grid");
+
+  const canvas = page.locator("#robotGrid");
+  const canvasBox = await canvas.boundingBox();
+  const scale = canvasBox.width / 704;
+  await canvas.dblclick({ position: { x: (32 + 31.5 * 20) * scale, y: (32 + 31.5 * 20) * scale } });
+  assert.equal(await page.locator("#cellCount").textContent(), "1023");
+
+  await page.locator('[data-tool="wheel"]').click();
+  await page.mouse.move(
+    canvasBox.x + (32 + 6 * 20) * scale,
+    canvasBox.y + (32 + 16 * 20) * scale
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    canvasBox.x + (32 + 8 * 20) * scale,
+    canvasBox.y + (32 + 18 * 20) * scale,
+    { steps: 4 }
+  );
+  await page.mouse.up();
+  assert.equal(await page.locator("#wheelTrack").textContent(), "128 mm");
+  await canvas.dblclick({
+    position: { x: (32 + 24 * 20) * scale, y: (32 + 18 * 20) * scale }
+  });
+  assert.match(await page.locator("#validationState").textContent(), /exactly two wheels/);
+  await canvas.click({ position: { x: (32 + 24 * 20) * scale, y: (32 + 18 * 20) * scale } });
+  assert.equal(await page.locator("#wheelTrack").textContent(), "128 mm");
+
+  await page.locator('[data-tool="sensor"]').click();
+  await canvas.click({ position: { x: (32 + 16 * 20) * scale, y: (32 + 24 * 20) * scale } });
+  assert.equal(await page.locator("#sensorCount").textContent(), "2");
+  await page.mouse.move(
+    canvasBox.x + (32 + 16 * 20) * scale,
+    canvasBox.y + (32 + 24 * 20) * scale
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    canvasBox.x + (32 + 20 * 20) * scale,
+    canvasBox.y + (32 + 26 * 20) * scale,
+    { steps: 4 }
+  );
+  await page.mouse.up();
+  await canvas.dblclick({
+    position: { x: (32 + 16 * 20) * scale, y: (32 + 4 * 20) * scale }
+  });
+  assert.equal(await page.locator("#sensorCount").textContent(), "1");
+  assert.equal(await page.locator("#validationState").getAttribute("class"), "validation-state valid");
+  assert.equal(await page.locator('#sensorList input[type="radio"]').count(), 1);
+
+  await page.reload();
+  await page.locator("#profileList .profile-item").first().waitFor();
+  assert.equal(await page.locator("#profileName").inputValue(), "Custom Grid");
+  assert.equal(await page.locator("#cellCount").textContent(), "1023");
+  assert.equal(await page.locator("#sensorCount").textContent(), "1");
+  assert.equal(await page.locator("#wheelTrack").textContent(), "128 mm");
+
+  await Promise.all([
+    page.waitForNavigation(),
+    page.locator("#useInSimulator").click()
+  ]);
+  await page.waitForFunction(async () => Boolean((await import("/assets/js/bootstrap.js")).defaultSimulator));
+  assert.match(await page.locator("#activeRobotProfile").textContent(), /Custom Grid/);
+  const importedState = await page.evaluate(
+    async () => (await import("/assets/js/bootstrap.js")).defaultSimulator.getState()
+  );
+  assert.equal(importedState.robot.design.bodyCells.length, 1023);
+  assert.equal(importedState.robot.wheelTrackMm, 128);
+  assert.ok(
+    importedState.robot.design.sensors.some(
+      (sensor) => sensor.nodeColumn === 20 && sensor.nodeRow === 26
+    )
+  );
+  assert.equal(Object.keys(importedState.sensors).length, 1);
+
+  await Promise.all([
+    page.waitForNavigation(),
+    page.locator("#defaultRobotButton").click()
+  ]);
+  assert.match(await page.locator("#activeRobotProfile").textContent(), /Default robot|Стандартный робот/);
+  assert.deepEqual(pageErrors, []);
+  assert.deepEqual(failedRequests, []);
+});

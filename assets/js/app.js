@@ -9,6 +9,7 @@ import {
 } from "./core/math.js";
 import { createSimulationModel, resetObjectState } from "./core/model.js";
 import { getScenario } from "./core/registry.js";
+import { materializeRobotDesign } from "./core/robot-design.js";
 import { createInterpreter } from "./programming.js";
 
     export function createSimulator(options = {}) {
@@ -16,6 +17,41 @@ import { createInterpreter } from "./programming.js";
       throw new Error("createSimulator requires a scenarioId");
     }
     const scenario = getScenario(options.scenarioId);
+    const robotGeometry = scenario.robot.body.type === "grid"
+      ? materializeRobotDesign(scenario, options.robotDesign || scenario.robot.defaultDesign)
+      : Object.freeze({
+        design: null,
+        bodyRectangles: [{
+          x: 0,
+          y: 0,
+          width: scenario.robot.body.widthMm,
+          height: scenario.robot.body.heightMm
+        }],
+        wheels: [
+          {
+            id: "left",
+            localX: -scenario.robot.drive.wheelTrackMm / 2,
+            localY: 0,
+            widthMm: scenario.robot.drive.wheelWidthMm,
+            heightMm: scenario.robot.drive.wheelDiameterMm
+          },
+          {
+            id: "right",
+            localX: scenario.robot.drive.wheelTrackMm / 2,
+            localY: 0,
+            widthMm: scenario.robot.drive.wheelWidthMm,
+            heightMm: scenario.robot.drive.wheelDiameterMm
+          }
+        ],
+        sensors: scenario.robot.sensors,
+        primarySensorId: scenario.programming.lineSensorId,
+        wheelTrackMm: scenario.robot.drive.wheelTrackMm,
+        axleLocalX: 0,
+        axleLocalY: 0,
+        widthMm: scenario.robot.body.widthMm,
+        heightMm: scenario.robot.body.heightMm
+      });
+    const robotDefinition = { ...scenario.robot, sensors: robotGeometry.sensors };
     const host = options.root || globalThis.document;
     const document = host.ownerDocument || host;
     const window = document.defaultView || globalThis;
@@ -35,11 +71,9 @@ import { createInterpreter } from "./programming.js";
       yMm: START_Y_MM,
       headingDeg: scenario.robot.startPose.headingDeg
     });
-    const ROBOT_WIDTH_MM = scenario.robot.body.widthMm;
-    const ROBOT_HEIGHT_MM = scenario.robot.body.heightMm;
-    const HALF_ROBOT_WIDTH_MM = ROBOT_WIDTH_MM / 2;
-    const HALF_ROBOT_HEIGHT_MM = ROBOT_HEIGHT_MM / 2;
-    const WHEEL_TRACK_MM = scenario.robot.drive.wheelTrackMm;
+    const ROBOT_WIDTH_MM = robotGeometry.widthMm;
+    const ROBOT_HEIGHT_MM = robotGeometry.heightMm;
+    const WHEEL_TRACK_MM = robotGeometry.wheelTrackMm;
     const HALF_WHEEL_TRACK_MM = WHEEL_TRACK_MM / 2;
     const WHEEL_DIAMETER_MM = scenario.robot.drive.wheelDiameterMm;
     const WHEEL_WIDTH_MM = scenario.robot.drive.wheelWidthMm;
@@ -48,9 +82,13 @@ import { createInterpreter } from "./programming.js";
     const ARTIFACT_CORE_SIZE_MM = scenario.objects.visual.coreSizeMm;
     const HALF_ARTIFACT_CORE_MM = ARTIFACT_CORE_SIZE_MM / 2;
     const ARTIFACT_SIDE_TAB_WIDTH_MM = scenario.objects.visual.sideTabWidthMm;
-    const colorSensors = scenario.robot.sensors.filter((sensor) => sensor.type === "color");
+    const driveWheels = robotGeometry.wheels;
+    const colorSensors = robotGeometry.sensors.filter((sensor) => sensor.type === "color");
+    const robotBodyCellSet = new Set(
+      (robotGeometry.design?.bodyCells || []).map(([column, row]) => `${column}:${row}`)
+    );
     const primaryColorSensor = colorSensors.find(
-      (sensor) => sensor.id === scenario.programming.lineSensorId
+      (sensor) => sensor.id === robotGeometry.primarySensorId
     ) || colorSensors[0];
     const BACKGROUND_SRC = scenario.world.backgroundSrc;
     const SENSOR_MAP_SRC = scenario.world.sensorMapSrc || BACKGROUND_SRC;
@@ -189,7 +227,7 @@ import { createInterpreter } from "./programming.js";
     const resetProgramButton = queryOne("#resetProgramButton");
     const programStatus = queryOne("#programStatus");
     const languageButtons = Array.from(queryAll("[data-language]"));
-    const model = createSimulationModel(scenario);
+    const model = createSimulationModel(scenario, robotDefinition);
 
     const background = new Image();
     background.src = BACKGROUND_SRC;
@@ -205,6 +243,7 @@ import { createInterpreter } from "./programming.js";
     const physics = {
       engine: Engine.create({ gravity: { x: 0, y: 0 } }),
       robotBody: null,
+      robotOriginOffset: { x: 0, y: 0 },
       boundaries: [],
       accumulatorMs: 0,
       drive: {
@@ -880,16 +919,37 @@ import { createInterpreter } from "./programming.js";
       physics.drive.angularRadS = angularRadS;
     }
 
-    function turnRobotInPlace(angleRad) {
+    function setPhysicsBodyFromRobotPose() {
+      if (!physics.robotBody) return;
+      const cos = Math.cos(robot.headingRad);
+      const sin = Math.sin(robot.headingRad);
+      const offset = physics.robotOriginOffset;
+      Body.setAngle(physics.robotBody, robot.headingRad);
+      Body.setPosition(physics.robotBody, {
+        x: robot.xMm + offset.x * cos - offset.y * sin,
+        y: robot.yMm + offset.x * sin + offset.y * cos
+      });
+    }
+
+    function rotateRobotAround(angleRad, pivotLocalX, pivotLocalY) {
+      const pivot = localToWorld(pivotLocalX, pivotLocalY);
+      robot.headingRad = normalizeAngle(robot.headingRad + angleRad);
+      const rotatedPivot = transformLocalToWorld(
+        { xMm: 0, yMm: 0, headingRad: robot.headingRad },
+        pivotLocalX,
+        pivotLocalY
+      );
+      robot.xMm = pivot.xMm - rotatedPivot.xMm;
+      robot.yMm = pivot.yMm - rotatedPivot.yMm;
       if (physics.robotBody) {
         Body.setVelocity(physics.robotBody, { x: 0, y: 0 });
         Body.setAngularVelocity(physics.robotBody, 0);
-        Body.setAngle(physics.robotBody, physics.robotBody.angle + angleRad);
-        robot.headingRad = normalizeAngle(physics.robotBody.angle);
-        return;
+        setPhysicsBodyFromRobotPose();
       }
+    }
 
-      robot.headingRad = normalizeAngle(robot.headingRad + angleRad);
+    function turnRobotInPlace(angleRad) {
+      rotateRobotAround(angleRad, robotGeometry.axleLocalX, robotGeometry.axleLocalY);
     }
 
     function resetPhysicsWorld() {
@@ -910,15 +970,38 @@ import { createInterpreter } from "./programming.js";
           slop: 0
         }
       ));
-      physics.robotBody = Bodies.rectangle(robot.xMm, robot.yMm, ROBOT_WIDTH_MM, ROBOT_HEIGHT_MM, {
-        angle: robot.headingRad,
+      const partOptions = {
         density: PHYSICS.robotDensity,
         friction: PHYSICS.robotFriction,
         frictionStatic: PHYSICS.robotStaticFriction,
         frictionAir: scenario.robot.physics.airFriction,
         restitution: 0,
         slop: 0
+      };
+      const bodyParts = [
+        ...robotGeometry.bodyRectangles.map((part) => Bodies.rectangle(
+          part.x, part.y, part.width, part.height, partOptions
+        )),
+        ...driveWheels.map((wheel) => Bodies.rectangle(
+          wheel.localX, wheel.localY, wheel.widthMm, wheel.heightMm, partOptions
+        )),
+        ...colorSensors.map((sensor) => Bodies.rectangle(
+          sensor.localX, sensor.localY, sensor.widthMm, sensor.depthMm, partOptions
+        ))
+      ];
+      physics.robotBody = Body.create({
+        parts: bodyParts,
+        friction: PHYSICS.robotFriction,
+        frictionStatic: PHYSICS.robotStaticFriction,
+        frictionAir: scenario.robot.physics.airFriction,
+        restitution: 0,
+        slop: 0
       });
+      physics.robotOriginOffset = {
+        x: physics.robotBody.position.x,
+        y: physics.robotBody.position.y
+      };
+      setPhysicsBodyFromRobotPose();
       Composite.add(physics.engine.world, [...physics.boundaries, physics.robotBody]);
     }
 
@@ -956,11 +1039,10 @@ import { createInterpreter } from "./programming.js";
         Math.abs(physics.drive.linearMmS) < 0.0001
         && Math.abs(physics.drive.angularRadS) > 0.0001
       ) {
-        Body.setVelocity(body, { x: 0, y: 0 });
-        const angularDamping = Math.max(1 - body.frictionAir, 0.001);
-        Body.setAngularVelocity(
-          body,
-          physics.drive.angularRadS * stepSeconds / angularDamping
+        rotateRobotAround(
+          physics.drive.angularRadS * stepSeconds,
+          robotGeometry.axleLocalX,
+          robotGeometry.axleLocalY
         );
         return;
       }
@@ -1005,10 +1087,12 @@ import { createInterpreter } from "./programming.js";
         ) / stepSquared;
       }
 
-      for (const wheelX of [-HALF_WHEEL_TRACK_MM, HALF_WHEEL_TRACK_MM]) {
+      for (const wheel of driveWheels) {
+        const localFromMassX = wheel.localX - physics.robotOriginOffset.x;
+        const localFromMassY = wheel.localY - physics.robotOriginOffset.y;
         const wheelOffset = {
-          x: wheelX * Math.cos(heading),
-          y: wheelX * Math.sin(heading)
+          x: localFromMassX * Math.cos(heading) - localFromMassY * Math.sin(heading),
+          y: localFromMassX * Math.sin(heading) + localFromMassY * Math.cos(heading)
         };
         const wheelPosition = {
           x: body.position.x + wheelOffset.x,
@@ -1023,7 +1107,8 @@ import { createInterpreter } from "./programming.js";
         );
         const lateralVelocityChange = -currentLateralVelocity * PHYSICS.wheelLateralGrip;
         const lateralForce = (body.mass / 2) * lateralVelocityChange / stepSquared;
-        const wheelForwardForce = forwardForce - wheelX * turnTorque /
+        const lateralDistance = wheel.localX - robotGeometry.axleLocalX;
+        const wheelForwardForce = forwardForce - lateralDistance * turnTorque /
           (2 * HALF_WHEEL_TRACK_MM * HALF_WHEEL_TRACK_MM);
 
         Body.applyForce(body, wheelPosition, {
@@ -1097,9 +1182,13 @@ import { createInterpreter } from "./programming.js";
     function syncPhysicsState() {
       if (!physics.robotBody) return;
 
-      robot.xMm = physics.robotBody.position.x;
-      robot.yMm = physics.robotBody.position.y;
       robot.headingRad = normalizeAngle(physics.robotBody.angle);
+      const cos = Math.cos(robot.headingRad);
+      const sin = Math.sin(robot.headingRad);
+      robot.xMm = physics.robotBody.position.x
+        - physics.robotOriginOffset.x * cos + physics.robotOriginOffset.y * sin;
+      robot.yMm = physics.robotBody.position.y
+        - physics.robotOriginOffset.x * sin - physics.robotOriginOffset.y * cos;
 
       for (const artefact of artefacts) {
         if (!artefact.dropped || !artefact.body) continue;
@@ -1325,14 +1414,15 @@ import { createInterpreter } from "./programming.js";
       }
 
       if (command.type === "turn_one") {
-        const pivotLocalX = command.movingWheel === "left"
-          ? HALF_WHEEL_TRACK_MM
-          : -HALF_WHEEL_TRACK_MM;
+        const stationaryWheel = command.movingWheel === "left"
+          ? driveWheels.find((wheel) => wheel.id === "right")
+          : driveWheels.find((wheel) => wheel.id === "left");
         return {
           ...command,
           remainingRad: Math.abs(command.value) * Math.PI / 180,
           direction: Math.sign(command.value) || 1,
-          pivotLocalX,
+          pivotLocalX: stationaryWheel.localX,
+          pivotLocalY: stationaryWheel.localY,
           speedRadS: 0
         };
       }
@@ -1484,14 +1574,14 @@ import { createInterpreter } from "./programming.js";
           turnAccelerationRadS2,
           dtSeconds
         );
-        const stepRad = motion.step;
-        const angularSpeed = (stepRad * command.direction) / Math.max(dtSeconds, 0.001);
-        setRobotDrive(command.pivotLocalX * angularSpeed, angularSpeed);
+        const stepRad = motion.step * command.direction;
+        rotateRobotAround(stepRad, command.pivotLocalX, command.pivotLocalY);
 
-        command.remainingRad -= stepRad;
+        command.remainingRad -= Math.abs(stepRad);
         command.speedRadS = motion.speed;
         if (command.remainingRad <= 0.001) {
-          command.finishAfterPhysics = true;
+          stopRobotDrive();
+          completeProgramCommand();
         }
       }
     }
@@ -1592,10 +1682,10 @@ import { createInterpreter } from "./programming.js";
       const halfFaceSizeMm = sensor.faceSizeMm / 2;
       ctx.save();
       ctx.translate(sensor.localX, sensor.localY);
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "rgba(17, 24, 39, 0.9)";
-      ctx.lineWidth = 2;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#f59e0b";
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 3;
 
       ctx.fillRect(
         -halfWidthMm,
@@ -1609,7 +1699,7 @@ import { createInterpreter } from "./programming.js";
         sensor.widthMm,
         sensor.depthMm
       );
-      ctx.fillStyle = "#111827";
+      ctx.fillStyle = "#0f172a";
       ctx.fillRect(
         -halfFaceSizeMm,
         -halfFaceSizeMm,
@@ -1622,7 +1712,7 @@ import { createInterpreter } from "./programming.js";
         sensor.faceSizeMm,
         sensor.faceSizeMm
       );
-      ctx.fillStyle = "#667085";
+      ctx.fillStyle = "#334155";
       ctx.beginPath();
       ctx.arc(0, 0, sensor.lensRadiusMm, 0, Math.PI * 2);
       ctx.fill();
@@ -1655,28 +1745,67 @@ import { createInterpreter } from "./programming.js";
       ctx.translate(robot.xMm, robot.yMm);
       ctx.rotate(robot.headingRad);
 
+      ctx.beginPath();
+      for (const part of robotGeometry.bodyRectangles) {
+        ctx.rect(part.x - part.width / 2, part.y - part.height / 2, part.width, part.height);
+      }
       ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
-      ctx.lineWidth = 4;
-      ctx.fillRect(-HALF_ROBOT_WIDTH_MM, -HALF_ROBOT_HEIGHT_MM, ROBOT_WIDTH_MM, ROBOT_HEIGHT_MM);
-      ctx.strokeRect(-HALF_ROBOT_WIDTH_MM, -HALF_ROBOT_HEIGHT_MM, ROBOT_WIDTH_MM, ROBOT_HEIGHT_MM);
+      ctx.fill();
+
+      ctx.strokeStyle = "#0f172a";
+      ctx.lineWidth = 3;
+      if (robotGeometry.design) {
+        const cellSize = robotGeometry.grid.cellSizeMm;
+        const originColumn = robotGeometry.grid.originNodeColumn;
+        const originRow = robotGeometry.grid.originNodeRow;
+        ctx.beginPath();
+        for (const [column, row] of robotGeometry.design.bodyCells) {
+          const left = (column - originColumn) * cellSize;
+          const top = (row - originRow) * cellSize;
+          if (!robotBodyCellSet.has(`${column - 1}:${row}`)) {
+            ctx.moveTo(left, top);
+            ctx.lineTo(left, top + cellSize);
+          }
+          if (!robotBodyCellSet.has(`${column + 1}:${row}`)) {
+            ctx.moveTo(left + cellSize, top);
+            ctx.lineTo(left + cellSize, top + cellSize);
+          }
+          if (!robotBodyCellSet.has(`${column}:${row - 1}`)) {
+            ctx.moveTo(left, top);
+            ctx.lineTo(left + cellSize, top);
+          }
+          if (!robotBodyCellSet.has(`${column}:${row + 1}`)) {
+            ctx.moveTo(left, top + cellSize);
+            ctx.lineTo(left + cellSize, top + cellSize);
+          }
+        }
+        ctx.stroke();
+      } else {
+        for (const part of robotGeometry.bodyRectangles) {
+          ctx.strokeRect(part.x - part.width / 2, part.y - part.height / 2, part.width, part.height);
+        }
+      }
 
       ctx.fillStyle = "rgba(17, 24, 39, 0.95)";
       ctx.strokeStyle = "rgba(248, 250, 252, 0.45)";
       ctx.lineWidth = 2;
-      for (const wheelX of [-HALF_WHEEL_TRACK_MM, HALF_WHEEL_TRACK_MM]) {
-        ctx.fillRect(
-          wheelX - WHEEL_WIDTH_MM / 2,
-          -WHEEL_DIAMETER_MM / 2,
-          WHEEL_WIDTH_MM,
-          WHEEL_DIAMETER_MM
-        );
-        ctx.strokeRect(
-          wheelX - WHEEL_WIDTH_MM / 2,
-          -WHEEL_DIAMETER_MM / 2,
-          WHEEL_WIDTH_MM,
-          WHEEL_DIAMETER_MM
-        );
+      ctx.save();
+      ctx.setLineDash([8, 5]);
+      ctx.strokeStyle = "rgba(245, 158, 11, 0.95)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(driveWheels[0].localX, driveWheels[0].localY);
+      ctx.lineTo(driveWheels[1].localX, driveWheels[1].localY);
+      ctx.stroke();
+      ctx.restore();
+      for (const wheel of driveWheels) {
+        const left = wheel.localX - WHEEL_WIDTH_MM / 2;
+        const top = wheel.localY - WHEEL_DIAMETER_MM / 2;
+        ctx.fillStyle = "rgba(17, 24, 39, 0.95)";
+        ctx.strokeStyle = "rgba(248, 250, 252, 0.45)";
+        ctx.lineWidth = 2;
+        ctx.fillRect(left, top, WHEEL_WIDTH_MM, WHEEL_DIAMETER_MM);
+        ctx.strokeRect(left, top, WHEEL_WIDTH_MM, WHEEL_DIAMETER_MM);
       }
 
       for (const sensor of colorSensors) {
@@ -1897,7 +2026,13 @@ import { createInterpreter } from "./programming.js";
       advance: advanceSimulation,
       getState() {
         return {
-          robot: { ...robot },
+          robot: {
+            ...robot,
+            widthMm: robotGeometry.widthMm,
+            heightMm: robotGeometry.heightMm,
+            wheelTrackMm: robotGeometry.wheelTrackMm,
+            design: robotGeometry.design
+          },
           objects: artefacts.map((artefact) => ({
             id: artefact.id,
             color: artefact.name,

@@ -23,7 +23,8 @@ Node.js is still required, but no terminal command is needed.
 ## Architecture
 
 - `assets/js/core/` contains scenario registration, validation, simulation
-  state, geometry and motion math. Core modules do not read the DOM.
+  state, grid robot design validation, geometry and motion math. Core modules
+  do not read the DOM.
 - `assets/js/programming.js` contains the shared pseudocode parser. The syntax
   is common to all scenarios; colors and valid `drop()` targets come from the
   active scenario.
@@ -32,6 +33,8 @@ Node.js is still required, but no terminal command is needed.
   field, robot, sensors, objects, physics, controls, programs and translations.
 - `assets/js/app.js` exports the scenario-independent simulator factory.
 - `assets/js/bootstrap.js` imports the selected scenario and starts the page.
+- `robot-editor.html` is the separate 32 × 32 robot editor. Named drafts and
+  the explicitly imported simulator snapshot are stored per scenario.
 
 All application modules use native `import` and `export`. `index.html` loads
 Matter.js followed by the single module entrypoint, `bootstrap.js`.
@@ -57,9 +60,22 @@ const simulator = createSimulator({
 ```
 
 The registry includes component types for a rectangular body, differential
-drive, color sensor and numbered artifact. Scenario registration validates
-required data, component types, identifiers and primary dimensions, then
-freezes the configuration.
+drive, grid body, color sensor and numbered artifact. Grid robot designs use
+8 mm cells, two wheels on one horizontal axle and one or more color sensors.
+Scenario registration validates required data, component types, identifiers
+and primary dimensions, then freezes the configuration.
+
+## Robot editor
+
+Open [http://127.0.0.1:4173/robot-editor.html](http://127.0.0.1:4173/robot-editor.html)
+or use **Robot editor** in the simulator. The editor can paint or erase body
+cells, place wheels and sensors, select the primary line sensor and manage
+multiple named profiles.
+
+Drafts autosave but do not change the simulator. Use **Import robot** in the
+simulator to store and activate a validated snapshot. **Default robot** clears
+that snapshot. Existing program tabs, colors and language use their original
+storage keys.
 
 ## Adding a scenario
 

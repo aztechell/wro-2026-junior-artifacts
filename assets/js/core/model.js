@@ -1,4 +1,4 @@
-  function createSimulationModel(scenario) {
+  function createSimulationModel(scenario, robotDefinition = scenario.robot) {
     const robot = {
       xMm: scenario.robot.startPose.xMm,
       yMm: scenario.robot.startPose.yMm,
@@ -13,8 +13,9 @@
       body: null,
       pendingRelease: false
     }));
+    const configuredSensors = robotDefinition.sensors || scenario.robot.defaultDesign?.sensors || [];
     const sensors = new Map(
-      scenario.robot.sensors.map((sensor) => [
+      configuredSensors.map((sensor) => [
         sensor.id,
         {
           color: "unknown",

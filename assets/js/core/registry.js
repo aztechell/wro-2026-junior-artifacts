@@ -71,9 +71,19 @@ const componentTypes = new Map();
     assert(robot && robot.body && robot.drive, "robot body and drive are required");
     requireComponent("body", robot.body.type, "robot.body");
     requireComponent("drive", robot.drive.type, "robot.drive");
-    assert(isPositiveNumber(robot.body.widthMm), "robot.body.widthMm must be positive");
-    assert(isPositiveNumber(robot.body.heightMm), "robot.body.heightMm must be positive");
-    assert(isPositiveNumber(robot.drive.wheelTrackMm), "robot.drive.wheelTrackMm must be positive");
+    if (robot.body.type === "rectangle") {
+      assert(isPositiveNumber(robot.body.widthMm), "robot.body.widthMm must be positive");
+      assert(isPositiveNumber(robot.body.heightMm), "robot.body.heightMm must be positive");
+      assert(isPositiveNumber(robot.drive.wheelTrackMm), "robot.drive.wheelTrackMm must be positive");
+    } else if (robot.body.type === "grid") {
+      const grid = robot.editor?.grid;
+      assert(grid, "grid robot requires robot.editor.grid");
+      assert(grid.columns === 32 && grid.rows === 32, "grid robot must use a 32x32 grid");
+      assert(grid.cellSizeMm === 8, "grid robot must use an 8 mm cell size");
+      assert(grid.originNodeColumn === 16 && grid.originNodeRow === 16, "grid robot origin must be node 16,16");
+      assert(robot.defaultDesign, "grid robot requires a default design");
+      assert(robot.editor.sensorTypes?.color, "grid robot requires a color sensor definition");
+    }
     assert(
       robot.startPose
         && Number.isFinite(robot.startPose.xMm)
@@ -82,10 +92,13 @@ const componentTypes = new Map();
       "robot.startPose must contain finite xMm, yMm and headingDeg"
     );
 
-    assert(Array.isArray(robot.sensors), "robot.sensors must be an array");
-    assert(robot.sensors.length > 0, "robot.sensors cannot be empty");
+    const configuredSensors = robot.body.type === "grid"
+      ? robot.defaultDesign.sensors
+      : robot.sensors;
+    assert(Array.isArray(configuredSensors), "robot sensors must be an array");
+    assert(configuredSensors.length > 0, "robot sensors cannot be empty");
     const sensorIds = new Set();
-    for (const sensor of robot.sensors) {
+    for (const sensor of configuredSensors) {
       assert(typeof sensor.id === "string" && sensor.id.length > 0, "sensor id is required");
       assert(!sensorIds.has(sensor.id), `duplicate sensor id "${sensor.id}"`);
       sensorIds.add(sensor.id);
@@ -110,10 +123,10 @@ const componentTypes = new Map();
     assert(config.controls && config.controls.linear && config.controls.turn, "motion controls are required");
     assert(config.programming && Array.isArray(config.programming.colorOrder), "programming.colorOrder is required");
     assert(Array.isArray(config.programming.dropTargets), "programming.dropTargets is required");
-    assert(
-      sensorIds.has(config.programming.lineSensorId),
-      "programming.lineSensorId must reference a configured sensor"
-    );
+    const defaultLineSensorId = robot.body.type === "grid"
+      ? robot.defaultDesign.primarySensorId
+      : config.programming.lineSensorId;
+    assert(sensorIds.has(defaultLineSensorId), "line sensor must reference a configured sensor");
     for (const id of config.programming.dropTargets) {
       assert(objectIds.has(String(id)), `drop target "${id}" does not reference an object`);
     }
@@ -143,6 +156,7 @@ const componentTypes = new Map();
   }
 
 registerComponentType("body", "rectangle", { description: "Rectangular rigid body" });
+registerComponentType("body", "grid", { description: "Editable 8 mm cell grid body" });
 registerComponentType("drive", "differential", { description: "Two-wheel differential drive" });
 registerComponentType("sensor", "color", { description: "Image-backed RGB color sensor" });
 registerComponentType("object", "numbered-artifact", { description: "Numbered carried object" });

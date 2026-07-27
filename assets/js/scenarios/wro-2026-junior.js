@@ -1,5 +1,10 @@
 import { registerScenario } from "../core/registry.js";
 
+const DEFAULT_BODY_CELLS = Array.from({ length: 32 * 32 }, (_, index) => [
+  index % 32,
+  Math.floor(index / 32)
+]);
+
     const BUILT_IN_PROGRAMS = Object.freeze([
       Object.freeze({
         id: "solution-1",
@@ -597,7 +602,9 @@ moveToLine(10)`
       legacyProgram: "wro2026JuniorPseudocode",
       programTabs: "wro2026JuniorPseudocodeTabs",
       colorSettings: "wro2026JuniorColorSettings",
-      language: "wro2026JuniorLanguage"
+      language: "wro2026JuniorLanguage",
+      robotProfiles: "wro2026JuniorRobotProfilesV1",
+      activeRobotDesign: "wro2026JuniorActiveRobotDesignV1"
     },
     world: {
       widthMm: 1000,
@@ -619,13 +626,10 @@ moveToLine(10)`
     },
     robot: {
       body: {
-        type: "rectangle",
-        widthMm: 250,
-        heightMm: 250
+        type: "grid"
       },
       drive: {
         type: "differential",
-        wheelTrackMm: 163.5,
         wheelDiameterMm: 62.4,
         wheelWidthMm: 24,
         reverseScale: 0.72,
@@ -642,27 +646,45 @@ moveToLine(10)`
         staticFriction: 1,
         airFriction: 0.04
       },
-      sensors: [
-        {
-          id: "front-color",
-          type: "color",
-          labelKey: "ui.colorSensor",
-          localX: 0,
-          localY: -96,
-          widthMm: 24,
-          depthMm: 24,
-          faceSizeMm: 16,
-          lensRadiusMm: 5,
-          palette: [
+      editor: {
+        grid: {
+          columns: 32,
+          rows: 32,
+          cellSizeMm: 8,
+          originNodeColumn: 16,
+          originNodeRow: 16
+        },
+        sensorTypes: {
+          color: {
+            labelKey: "ui.colorSensor",
+            widthMm: 24,
+            depthMm: 24,
+            faceSizeMm: 16,
+            lensRadiusMm: 5,
+            palette: [
             { name: "black", red: 17, green: 24, blue: 39, swatch: "#111827" },
             { name: "blue", red: 37, green: 99, blue: 235, swatch: "#2563eb" },
             { name: "green", red: 22, green: 163, blue: 74, swatch: "#16a34a" },
             { name: "yellow", red: 250, green: 204, blue: 21, swatch: "#facc15" },
             { name: "red", red: 220, green: 38, blue: 38, swatch: "#dc2626" },
             { name: "white", red: 255, green: 255, blue: 255, swatch: "#ffffff" }
-          ]
+            ]
+          }
         }
-      ]
+      },
+      defaultDesign: {
+        schemaVersion: 1,
+        scenarioId: "wro-2026-junior",
+        bodyCells: DEFAULT_BODY_CELLS,
+        wheels: [
+          { id: "left", nodeColumn: 6, nodeRow: 16 },
+          { id: "right", nodeColumn: 26, nodeRow: 16 }
+        ],
+        sensors: [
+          { id: "front-color", type: "color", nodeColumn: 16, nodeRow: 4 }
+        ],
+        primarySensorId: "front-color"
+      }
     },
     physics: {
       stepMs: 1000 / 60,

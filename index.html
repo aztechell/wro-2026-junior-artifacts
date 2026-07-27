@@ -620,6 +620,76 @@
       display: block;
     }
 
+    .robot-design-actions {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .robot-design-actions a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: var(--ink);
+      text-align: center;
+      text-decoration: none;
+      background: #f8fafc;
+    }
+
+    .robot-profile-name {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .robot-dialog {
+      width: min(520px, calc(100vw - 32px));
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      color: var(--ink);
+      box-shadow: 0 24px 70px rgba(16, 24, 40, 0.28);
+    }
+
+    .robot-dialog::backdrop {
+      background: rgba(17, 24, 39, 0.48);
+    }
+
+    .robot-dialog h2 {
+      margin: 0 0 12px;
+    }
+
+    .robot-import-list {
+      display: grid;
+      gap: 8px;
+      max-height: 45vh;
+      overflow: auto;
+      margin-bottom: 14px;
+    }
+
+    .robot-import-option {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .robot-import-option small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
     @media (max-width: 1040px) {
       .app {
         grid-template-columns: minmax(320px, 1fr) minmax(395px, 470px);
@@ -739,6 +809,12 @@
             <dd class="value">250 x 250 mm</dd>
           </div>
         </dl>
+        <p id="activeRobotProfile" class="robot-profile-name"></p>
+        <div class="robot-design-actions">
+          <a href="robot-editor.html" id="robotEditorLink">Редактор робота</a>
+          <button type="button" id="importRobotButton">Импортировать робота</button>
+          <button type="button" id="defaultRobotButton">Стандартный робот</button>
+        </div>
       </section>
 
       <section class="panel controls">
@@ -912,6 +988,16 @@ drop(1)</textarea>
       </section>
     </aside>
   </main>
+
+  <dialog id="robotImportDialog" class="robot-dialog">
+    <h2 id="robotImportTitle">Импортировать робота</h2>
+    <div id="robotImportList" class="robot-import-list"></div>
+    <p id="robotImportError" class="error"></p>
+    <div class="dialog-actions">
+      <button type="button" id="cancelRobotImport">Отмена</button>
+      <button type="button" id="confirmRobotImport">Импортировать</button>
+    </div>
+  </dialog>
 
   <script src="assets/matter-0.20.0.min.js"></script>
   <script type="module" src="assets/js/bootstrap.js"></script>

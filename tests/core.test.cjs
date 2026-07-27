@@ -16,14 +16,18 @@ const apiPromise = Promise.all([
   import(moduleUrl("assets/js/programming.js")),
   import(moduleUrl("assets/js/adapters/storage.js")),
   import(moduleUrl("assets/js/adapters/i18n.js")),
+  import(moduleUrl("assets/js/core/robot-design.js")),
+  import(moduleUrl("assets/js/adapters/robot-profiles.js")),
   import(moduleUrl("assets/js/scenarios/wro-2026-junior.js"))
-]).then(([registry, math, model, programming, storage, i18n]) => ({
+]).then(([registry, math, model, programming, storage, i18n, robotDesign, robotProfiles]) => ({
   ...registry,
   math,
   model,
   ...programming,
   ...storage,
-  ...i18n
+  ...i18n,
+  ...robotDesign,
+  ...robotProfiles
 }));
 
 function clone(value) {
@@ -43,28 +47,120 @@ test("WRO scenario is registered, validated and deeply frozen", async () => {
 
   assert.equal(api.listScenarios().length, 1);
   assert.equal(scenario.world.widthMm, 1000);
-  assert.equal(scenario.robot.body.widthMm, 250);
-  assert.equal(scenario.robot.drive.wheelTrackMm, 163.5);
+  const geometry = api.materializeRobotDesign(scenario, scenario.robot.defaultDesign);
+  assert.equal(scenario.robot.body.type, "grid");
+  assert.equal(geometry.design.bodyCells.length, 1024);
+  assert.equal(geometry.widthMm, 256);
+  assert.equal(geometry.wheelTrackMm, 160);
+  assert.equal(geometry.sensors[0].localY, -96);
   assert.deepEqual(Array.from(scenario.programming.dropTargets), ["1", "2", "3", "4"]);
   assert.equal(Object.isFrozen(scenario), true);
-  assert.equal(Object.isFrozen(scenario.robot.sensors[0].palette), true);
+  assert.equal(Object.isFrozen(scenario.robot.editor.sensorTypes.color.palette), true);
 });
 
-test("scenario registry accepts a different robot geometry without changing core", async () => {
+test("robot design changes geometry without changing the scenario", async () => {
   const api = await apiPromise;
-  const scenario = clone(api.getScenario("wro-2026-junior"));
-  scenario.id = "geometry-fixture";
-  scenario.robot.body.widthMm = 180;
-  scenario.robot.body.heightMm = 220;
-  scenario.robot.drive.wheelTrackMm = 140;
-  scenario.robot.sensors[0].localY = -72;
+  const scenario = api.getScenario("wro-2026-junior");
+  const design = clone(scenario.robot.defaultDesign);
+  design.bodyCells = [[10, 10], [12, 10]];
+  design.wheels[0].nodeColumn = 8;
+  design.wheels[1].nodeColumn = 24;
+  design.sensors[0].nodeRow = 8;
+  const geometry = api.materializeRobotDesign(scenario, design);
+  assert.equal(geometry.bodyRectangles.length, 2);
+  assert.equal(geometry.wheelTrackMm, 128);
+  assert.equal(geometry.sensors[0].localY, -64);
+});
 
-  api.registerScenario(scenario);
-  const fixture = api.getScenario("geometry-fixture");
-  assert.equal(fixture.robot.body.widthMm, 180);
-  assert.equal(fixture.robot.body.heightMm, 220);
-  assert.equal(fixture.robot.drive.wheelTrackMm, 140);
-  assert.equal(fixture.robot.sensors[0].localY, -72);
+test("robot design validation covers grid, components and primary sensor", async () => {
+  const api = await apiPromise;
+  const scenario = api.getScenario("wro-2026-junior");
+  const base = clone(scenario.robot.defaultDesign);
+  assert.equal(api.normalizeRobotDesign(scenario, base).bodyCells.length, 1024);
+
+  const duplicate = clone(base);
+  duplicate.bodyCells.push(duplicate.bodyCells[0]);
+  assert.throws(() => api.normalizeRobotDesign(scenario, duplicate), /Duplicate body cell/);
+
+  const tiltedAxle = clone(base);
+  tiltedAxle.wheels[1].nodeRow += 1;
+  assert.throws(() => api.normalizeRobotDesign(scenario, tiltedAxle), /horizontal axis/);
+
+  const asymmetricWheels = clone(base);
+  asymmetricWheels.wheels[0].nodeColumn += 1;
+  assert.throws(() => api.normalizeRobotDesign(scenario, asymmetricWheels), /symmetric/);
+
+  const overlap = clone(base);
+  overlap.sensors[0].nodeColumn = overlap.wheels[0].nodeColumn;
+  overlap.sensors[0].nodeRow = overlap.wheels[0].nodeRow;
+  assert.throws(() => api.normalizeRobotDesign(scenario, overlap), /overlap/);
+
+  const noPrimary = clone(base);
+  noPrimary.primarySensorId = "missing";
+  assert.throws(() => api.normalizeRobotDesign(scenario, noPrimary), /Primary sensor/);
+
+  const outside = clone(base);
+  outside.sensors[0].nodeColumn = 0;
+  assert.throws(() => api.normalizeRobotDesign(scenario, outside), /outside the robot grid/);
+});
+
+test("grid geometry preserves holes and rigid islands while merging full areas", async () => {
+  const api = await apiPromise;
+  const scenario = api.getScenario("wro-2026-junior");
+  const design = clone(scenario.robot.defaultDesign);
+  design.bodyCells = [
+    [0, 0], [1, 0],
+    [0, 1],
+    [10, 10]
+  ];
+  const normalized = api.normalizeRobotDesign(scenario, design);
+  const rectangles = api.mergeBodyCells(scenario, normalized);
+  assert.deepEqual(
+    rectangles.map(({ width, height }) => [width, height]).sort((a, b) => a[0] - b[0]),
+    [[8, 8], [8, 8], [16, 8]]
+  );
+
+  const checkerboard = clone(scenario.robot.defaultDesign);
+  checkerboard.bodyCells = [];
+  for (let row = 0; row < 32; row += 1) {
+    for (let column = 0; column < 32; column += 1) {
+      if ((column + row) % 2 === 0) checkerboard.bodyCells.push([column, row]);
+    }
+  }
+  assert.equal(api.mergeBodyCells(scenario, api.normalizeRobotDesign(scenario, checkerboard)).length, 512);
+});
+
+test("robot profile store keeps drafts and imports validated snapshots", async () => {
+  const api = await apiPromise;
+  const scenario = api.getScenario("wro-2026-junior");
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key)
+  };
+  const store = api.createRobotProfileStore(scenario, storage);
+  const initial = store.load();
+  assert.equal(initial.profiles.length, 1);
+  const legacyDefault = clone(initial.profiles[0].design);
+  legacyDefault.bodyCells = legacyDefault.bodyCells.filter(
+    ([column, row]) => column < 31 && row < 31
+  );
+  store.update(initial.profiles[0].id, { design: legacyDefault });
+  assert.equal(store.load().profiles[0].design.bodyCells.length, 1024);
+  const copy = store.duplicate(initial.profiles[0].id);
+  assert.equal(store.load().profiles.length, 2);
+  const invalid = clone(copy.design);
+  invalid.wheels = [];
+  store.update(copy.id, { design: invalid });
+  assert.equal(store.validation(store.load().profiles.find((item) => item.id === copy.id)).design, null);
+  assert.throws(() => store.importProfile(copy.id), /exactly two wheels/);
+  const snapshot = store.importProfile(initial.profiles[0].id);
+  assert.equal(store.active().snapshot.profileId, snapshot.profileId);
+  values.set(scenario.storage.activeRobotDesign, "{broken");
+  assert.ok(store.active().error);
+  store.remove(copy.id);
+  assert.equal(store.load().profiles.length, 1);
 });
 
 test("scenario validation rejects duplicate objects and unknown component types", async () => {
