@@ -1,0 +1,14 @@
+{
+  "name": "algo-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Configurable browser simulator for WRO-style robot missions",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "test:unit": "node --test tests/core.test.cjs",
+    "test:e2e": "node --test tests/browser.test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}
